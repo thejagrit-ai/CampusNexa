@@ -94,6 +94,46 @@ npm run dev -- --host 127.0.0.1 --port 5180 --strictPort
 
 The public site is available at `/`. Authentication is available at `/auth`.
 
+## Deploy Frontend To Vercel
+
+This repository is a Vite frontend. The included `vercel.json` handles the
+production build and rewrites client-side routes such as `/auth` and
+`/dashboard` to the Vite entry point.
+
+1. Import `thejagrit-ai/CampusNexa` into Vercel.
+2. Keep the framework as **Vite** or use the detected project settings.
+3. Use `npm run build` as the build command and `dist` as the output directory.
+4. Add the `VITE_FIREBASE_*` variables from your private local configuration in
+  Vercel Project Settings > Environment Variables.
+5. Deploy the project.
+
+Do not add `SEED_*` variables to Vercel. Seed credentials are for local data
+setup only and must not be exposed to the browser or deployment environment.
+
+## Deploy Firebase Backend
+
+Firebase hosts the backend services used by this application:
+
+- Firebase Authentication for login and accounts
+- Cloud Firestore for application data
+- Firebase Storage for uploaded files
+
+Install and authenticate with the Firebase CLI, then select the existing
+Firebase project before deploying rules:
+
+```powershell
+npm install -g firebase-tools
+firebase login
+firebase use --add
+firebase deploy --only firestore:rules
+```
+
+The project ID must match `VITE_FIREBASE_PROJECT_ID` in Vercel. Add the Vercel
+deployment domain to Firebase Authentication's authorized domains. Storage
+rules should be reviewed and deployed separately once a production
+`storage.rules` file has been approved; this repository intentionally does not
+create permissive storage rules automatically.
+
 ## Available Commands
 
 | Command | Purpose |
