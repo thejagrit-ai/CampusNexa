@@ -43,8 +43,8 @@ const faqs = [
     answer: 'Go to the Hostel Issues section in the sidebar. Click on "Report Issue", select a category (Plumbing, Electrical, etc.), describe your problem, and submit. You can track the status of your request and message the maintenance team directly.',
   },
   {
-    question: 'How do I order from the Night Canteen?',
-    answer: 'Navigate to the Night Canteen section. Browse the menu, add items to your cart, and place your order. You can track your order status in real-time and view your order history.',
+    question: 'How do I order from the Canteen?',
+    answer: 'Navigate to the Canteen section. Browse the menu, add items to your cart, and place your order. You can track your order status in real-time and view your order history.',
   },
   {
     question: 'How do I pay my semester fees?',

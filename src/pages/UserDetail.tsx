@@ -1,16 +1,43 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Mail, Phone, Building2, Calendar, User, BookOpen, ClipboardCheck, FileText, Award, CreditCard, Receipt, Wrench, ShieldAlert, UtensilsCrossed, Briefcase, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, Building2, Calendar, User, BookOpen, ClipboardCheck, FileText, Award, CreditCard, Receipt, Wrench, ShieldAlert, UtensilsCrossed, Briefcase, ExternalLink, MapPin, GraduationCap, Landmark, BriefcaseBusiness, KeyRound } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { uploadMedia } from '@/lib/cloudinary.service';
+import { usePermissions } from '@/hooks/usePermissions';
+
+const toFacultyForm = (source: any, fallback: any = {}) => {
+  const value = (key: string, alternate = '') => source?.[key] ?? fallback?.[key] ?? alternate;
+  const lines = (input: any) => Array.isArray(input) ? input.join('\n') : (input || '');
+  return {
+    fullName: value('fullName'), firstName: value('firstName'), lastName: value('lastName'),
+    email: value('email'), phone: value('phone'), gender: value('gender'),
+    department: value('department'), designation: value('designation'), specialization: value('specialization'),
+    employmentType: value('employmentType'), reportingManager: value('reportingManager'), employeeStatus: value('employeeStatus'),
+    experience: value('experience'), joiningDate: value('joiningDate'), address: value('address', value('currentAddress')),
+    city: value('city'), state: value('state'), country: value('country'), postalCode: value('postalCode'),
+    highestQualification: value('highestQualification'), degree: value('degree'), university: value('university'), graduationYear: value('graduationYear'),
+    qualifications: lines(value('qualifications')), certifications: lines(value('certifications')),
+    skills: Array.isArray(value('skills')) ? value('skills').join(', ') : value('skills'),
+    researchInterests: value('researchInterests'), areasOfExpertise: value('areasOfExpertise'), bio: value('bio'),
+    bankName: value('bankName'), accountHolderName: value('accountHolderName'), accountNumber: value('accountNumber'), ifsc: value('ifsc'), pan: value('pan'), payrollId: value('payrollId'),
+    enrollmentNumber: value('enrollmentNumber'), registrationNumber: value('registrationNumber'), rollNumber: value('rollNumber'),
+    program: value('program', value('degree')), batch: value('batch'), semester: value('semester'), section: value('section'),
+    dateOfBirth: value('dateOfBirth', value('dob')), guardianName: value('guardianName'), guardianPhone: value('guardianPhone'),
+  };
+};
 
 export default function UserDetail() {
   const { userId } = useParams();
   const navigate = useNavigate();
+  const { isAdmin, role: viewerRole, loading: authLoading } = usePermissions();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [enrollments, setEnrollments] = useState<any[]>([]);
@@ -22,6 +49,21 @@ export default function UserDetail() {
   const [profileData, setProfileData] = useState<any>(null);
   const [canteenOrders, setCanteenOrders] = useState<any[]>([]);
   const [placementApps, setPlacementApps] = useState<any[]>([]);
+  const [editOpen, setEditOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [facultyForm, setFacultyForm] = useState({
+    fullName: '', firstName: '', lastName: '', email: '', phone: '', gender: '',
+    department: '', designation: '', specialization: '', employmentType: '',
+    reportingManager: '', employeeStatus: '', experience: '', joiningDate: '',
+    address: '', city: '', state: '', country: '', postalCode: '',
+    highestQualification: '', degree: '', university: '', graduationYear: '',
+    qualifications: '', certifications: '', skills: '', researchInterests: '',
+    areasOfExpertise: '', bio: '', bankName: '', accountHolderName: '',
+    accountNumber: '', ifsc: '', pan: '', payrollId: '', enrollmentNumber: '', registrationNumber: '', rollNumber: '',
+    program: '', batch: '', semester: '', section: '', dateOfBirth: '', guardianName: '', guardianPhone: '',
+  });
+  const [formError, setFormError] = useState('');
+  const [imageUploading, setImageUploading] = useState(false);
 
   useEffect(() => {
     const fetchAllData = async () => {
@@ -35,6 +77,7 @@ export default function UserDetail() {
         }
         const userData = { id: userDoc.id, ...userDoc.data() } as any;
         setUser(userData);
+        setFacultyForm((current) => ({ ...current, ...toFacultyForm(userData) }));
 
         // Fetch role-specific profile
         let profileTable = '';
@@ -48,6 +91,8 @@ export default function UserDetail() {
           const profileDoc = await getDoc(doc(db, profileTable, userId!));
           if (profileDoc.exists()) {
             setProfileData(profileDoc.data());
+            const profile = profileDoc.data();
+            setFacultyForm((current) => ({ ...current, ...toFacultyForm(profile, current) }));
           }
         }
 
@@ -143,7 +188,7 @@ export default function UserDetail() {
     fetchAllData();
   }, [userId]);
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -155,6 +200,9 @@ export default function UserDetail() {
   }
 
   if (!user) return null;
+
+  const displayName = user.fullName || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email || 'User';
+  const canEditFaculty = isAdmin && ['faculty', 'student'].includes(user.role);
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
@@ -176,23 +224,47 @@ export default function UserDetail() {
     return new Date(date).toLocaleDateString();
   };
 
+  const saveFacultyDetails = async () => {
+    if (!userId || !['faculty', 'student'].includes(user.role) || !canEditFaculty) return;
+    if (!facultyForm.fullName.trim() || !facultyForm.email.trim()) { setFormError('Full name and email are required.'); return; }
+    if (!/^\S+@\S+\.\S+$/.test(facultyForm.email.trim())) { setFormError('Enter a valid email address.'); return; }
+    setFormError('');
+    setSaving(true);
+    try {
+      const data = { ...facultyForm, experience: facultyForm.experience ? Number(facultyForm.experience) : null, qualifications: facultyForm.qualifications.split('\n').map((item) => item.trim()).filter(Boolean), certifications: facultyForm.certifications.split('\n').map((item) => item.trim()).filter(Boolean), skills: facultyForm.skills.split(',').map((item) => item.trim()).filter(Boolean), updatedAt: serverTimestamp() };
+      await updateDoc(doc(db, 'users', userId), { ...data });
+      await setDoc(doc(db, user.role === 'student' ? 'studentProfiles' : 'facultyProfiles', userId), { ...data }, { merge: true });
+      setUser((current: any) => ({ ...current, ...data })); setProfileData((current: any) => ({ ...(current || {}), ...data })); setEditOpen(false); toast.success(`${user.role === 'student' ? 'Student' : 'Faculty'} details updated`);
+    } catch (error) { console.error(error); toast.error(`Failed to update ${user.role} details`); } finally { setSaving(false); }
+  };
+
+  const handleFacultyPhotoUpload = async (file?: File) => {
+    if (!canEditFaculty || !file || !userId || !file.type.startsWith('image/')) { toast.error('Please choose an image file'); return; }
+    if (file.size > 10 * 1024 * 1024) { toast.error('Image must be smaller than 10 MB'); return; }
+    setImageUploading(true);
+    try {
+      const photoURL = await uploadMedia(file, userId);
+      await updateDoc(doc(db, 'users', userId), { photoURL, updatedAt: serverTimestamp() });
+      await setDoc(doc(db, user.role === 'student' ? 'studentProfiles' : 'facultyProfiles', userId), { photoURL, updatedAt: serverTimestamp() }, { merge: true });
+      setUser((current: any) => ({ ...current, photoURL })); setProfileData((current: any) => ({ ...(current || {}), photoURL })); toast.success(`${user.role === 'student' ? 'Student' : 'Faculty'} photograph updated`);
+    } catch (error) { console.error(error); toast.error('Could not upload photograph'); } finally { setImageUploading(false); }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 border-b border-border/60 pb-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={() => navigate('/users')}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Users
           </Button>
           <div>
-            <h1 className="text-3xl font-bold text-foreground">{user.fullName}</h1>
-            <p className="text-muted-foreground mt-1">Complete user profile</p>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">{displayName}</h1>
+            <p className="mt-1 text-muted-foreground">{user.role === 'faculty' ? (user.designation || profileData?.designation || 'Faculty profile') : 'Complete user profile'}{(user.employeeId || user.enrollmentNumber || profileData?.employeeId || profileData?.enrollmentNumber) && <span className="ml-2 text-xs font-mono">· {user.employeeId || user.enrollmentNumber || profileData?.employeeId || profileData?.enrollmentNumber}</span>}</p>
           </div>
         </div>
-        <Badge variant={getRoleBadgeColor(user.role)} className="text-sm px-3 py-1">
-          {user.role?.replace('_', ' ').toUpperCase()}
-        </Badge>
+        <div className="flex flex-wrap items-center gap-2"><Badge variant={getRoleBadgeColor(user.role)} className="px-3 py-1 text-sm">{user.role?.replace('_', ' ').toUpperCase()}</Badge>{viewerRole !== 'placement_officer' && <Button variant="outline" size="sm" onClick={() => navigate('/settings')}><KeyRound className="mr-2 h-4 w-4" />Change password</Button>}{canEditFaculty && <Button size="sm" onClick={() => { setFormError(''); setEditOpen(true); }}><User className="mr-2 h-4 w-4" />Edit profile</Button>}</div>
       </div>
 
       {/* Main Info Card */}
@@ -205,7 +277,7 @@ export default function UserDetail() {
           <div className="space-y-3">
             <div>
               <label className="text-sm text-muted-foreground">Full Name</label>
-              <p className="text-foreground font-medium">{user.fullName}</p>
+              <p className="text-foreground font-medium">{displayName}</p>
             </div>
             <div>
               <label className="text-sm text-muted-foreground flex items-center gap-2">
@@ -287,30 +359,54 @@ export default function UserDetail() {
 
       {/* Additional Info */}
       {user.role === 'faculty' && (
-        <div className="card-elevated p-6">
-          <h2 className="text-xl font-semibold text-foreground mb-4">Faculty Details</h2>
-          <div className="grid gap-4 md:grid-cols-2">
-            {user.designation && (
-              <div>
-                <label className="text-sm text-muted-foreground">Designation</label>
-                <p className="text-foreground">{user.designation}</p>
+        <div className="space-y-6">
+          <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+            <div className="card-elevated flex flex-col items-center p-6 text-center">
+              <div className="mb-4 h-28 w-28 overflow-hidden rounded-2xl border border-border bg-muted">
+                {(user.photoURL || user.photoUrl || user.avatar || profileData?.photoURL || profileData?.photoUrl) ? <img src={user.photoURL || user.photoUrl || user.avatar || profileData?.photoURL || profileData?.photoUrl} alt={displayName} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-3xl font-semibold text-muted-foreground">{displayName.split(' ').map((name: string) => name[0]).slice(0, 2).join('')}</div>}
               </div>
-            )}
-            {user.specialization && (
-              <div>
-                <label className="text-sm text-muted-foreground">Specialization</label>
-                <p className="text-foreground">{user.specialization}</p>
-              </div>
-            )}
+              {canEditFaculty && <><label className="mb-3 inline-flex cursor-pointer items-center rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted">{imageUploading ? 'Uploading…' : 'Change photograph'}<input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" disabled={imageUploading} onChange={(event) => { handleFacultyPhotoUpload(event.target.files?.[0]); event.currentTarget.value = ''; }} /></label><p className="mb-3 text-[11px] text-muted-foreground">PNG, JPG or WebP · max 10 MB</p></>}
+              <h2 className="text-lg font-semibold text-foreground">{displayName}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{user.designation || profileData?.designation || 'Faculty member'}</p>
+              <Badge variant="outline" className="mt-3">{user.status || 'active'}</Badge>
+              <div className="mt-5 grid w-full grid-cols-2 gap-3 border-t border-border pt-5"><div><p className="text-xl font-semibold">{user.experience || profileData?.experience || '—'}</p><p className="text-xs text-muted-foreground">Years experience</p></div><div><p className="text-xl font-semibold">{user.employeeId || profileData?.employeeId || '—'}</p><p className="text-xs text-muted-foreground">Employee ID</p></div></div>
+            </div>
+            <div className="card-elevated p-6">
+              <div className="flex items-center gap-2 border-b border-border pb-4"><GraduationCap className="h-5 w-5 text-muted-foreground" /><h2 className="text-lg font-semibold">Professional profile</h2></div>
+              <div className="mt-5 grid gap-x-8 gap-y-5 sm:grid-cols-2"><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Department</p><p className="mt-1 font-medium">{user.department || profileData?.department || 'Not provided'}</p></div><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Designation</p><p className="mt-1 font-medium">{user.designation || profileData?.designation || 'Not provided'}</p></div><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Employment type</p><p className="mt-1 font-medium">{user.employmentType || profileData?.employmentType || 'Not provided'}</p></div><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Joining date</p><p className="mt-1 font-medium">{formatDate(user.joiningDate || profileData?.joiningDate)}</p></div><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Reporting manager</p><p className="mt-1 font-medium">{user.reportingManager || profileData?.reportingManager || 'Not provided'}</p></div><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Specialization</p><p className="mt-1 font-medium">{user.specialization || profileData?.specialization || 'Not provided'}</p></div></div>
+            </div>
           </div>
+
+          <div className="grid gap-6 xl:grid-cols-2">
+            <div className="card-elevated p-6"><div className="flex items-center gap-2 border-b border-border pb-4"><MapPin className="h-5 w-5 text-muted-foreground" /><h2 className="text-lg font-semibold">Contact & address</h2></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Email</p><p className="mt-1 break-all font-medium">{user.email || 'Not provided'}</p></div><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Phone</p><p className="mt-1 font-medium">{user.phone || profileData?.phone || 'Not provided'}</p></div><div className="sm:col-span-2"><p className="text-xs uppercase tracking-wide text-muted-foreground">Residential address</p><p className="mt-1 whitespace-pre-line font-medium">{user.address || profileData?.address || profileData?.currentAddress || 'Not provided'}</p></div><div><p className="text-xs uppercase tracking-wide text-muted-foreground">City / state</p><p className="mt-1 font-medium">{[user.city || profileData?.city, user.state || profileData?.state].filter(Boolean).join(' / ') || 'Not provided'}</p></div><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Country / postal code</p><p className="mt-1 font-medium">{[user.country || profileData?.country, user.postalCode || profileData?.postalCode].filter(Boolean).join(' / ') || 'Not provided'}</p></div></div></div>
+            <div className="card-elevated p-6"><div className="flex items-center gap-2 border-b border-border pb-4"><Award className="h-5 w-5 text-muted-foreground" /><h2 className="text-lg font-semibold">Qualifications</h2></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Highest qualification</p><p className="mt-1 font-medium">{user.highestQualification || profileData?.highestQualification || 'Not provided'}</p></div><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Degree / university</p><p className="mt-1 font-medium">{[user.degree || profileData?.degree, user.university || profileData?.university].filter(Boolean).join(' · ') || 'Not provided'}</p></div><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Graduation year</p><p className="mt-1 font-medium">{user.graduationYear || profileData?.graduationYear || 'Not provided'}</p></div><div className="sm:col-span-2"><p className="text-xs uppercase tracking-wide text-muted-foreground">Qualifications & certifications</p><p className="mt-1 whitespace-pre-line text-sm leading-6">{[user.qualifications || profileData?.qualifications, user.certifications || profileData?.certifications].flatMap((item) => Array.isArray(item) ? item : String(item || '').split(/\n|,/)).map((item) => String(item).trim()).filter(Boolean).join(' · ') || 'No qualification records provided.'}</p></div></div></div>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-2">
+            <div className="card-elevated p-6"><div className="flex items-center gap-2 border-b border-border pb-4"><BriefcaseBusiness className="h-5 w-5 text-muted-foreground" /><h2 className="text-lg font-semibold">Experience & research</h2></div><div className="mt-5 space-y-4"><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Total experience</p><p className="mt-1 text-2xl font-semibold">{user.experience || profileData?.experience || 'Not provided'}{(user.experience || profileData?.experience) && <span className="ml-1 text-sm font-normal text-muted-foreground">years</span>}</p></div><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Areas of expertise</p><p className="mt-1 text-sm leading-6">{user.areasOfExpertise || profileData?.areasOfExpertise || user.skills || profileData?.skills || 'Not provided'}</p></div><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Bio / research interests</p><p className="mt-1 whitespace-pre-line text-sm leading-6 text-muted-foreground">{user.bio || profileData?.bio || user.researchInterests || profileData?.researchInterests || 'No biography or research details provided.'}</p></div></div></div>
+            {isAdmin && <div className="card-elevated p-6"><div className="flex items-center gap-2 border-b border-border pb-4"><Landmark className="h-5 w-5 text-muted-foreground" /><h2 className="text-lg font-semibold">Banking & payroll</h2></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Bank name</p><p className="mt-1 font-medium">{user.bankName || profileData?.bankName || 'Not provided'}</p></div><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Account holder</p><p className="mt-1 font-medium">{user.accountHolderName || profileData?.accountHolderName || displayName}</p></div><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Account number</p><p className="mt-1 font-mono font-medium">{(user.accountNumber || profileData?.accountNumber) ? `•••• ${String(user.accountNumber || profileData?.accountNumber).slice(-4)}` : 'Not provided'}</p></div><div><p className="text-xs uppercase tracking-wide text-muted-foreground">IFSC</p><p className="mt-1 font-mono font-medium">{user.ifsc || profileData?.ifsc || 'Not provided'}</p></div></div><p className="mt-5 text-xs text-muted-foreground">Bank details are masked and visible only to authorized administrators.</p></div>}
+          </div>
+        </div>
+      )}
+
+      {user.role === 'student' && (
+        <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
+          <div className="card-elevated flex flex-col items-center p-6 text-center">
+            <div className="mb-4 h-28 w-28 overflow-hidden rounded-2xl border border-border bg-muted">
+              {(user.photoURL || user.photoUrl || profileData?.photoURL || profileData?.photoUrl) ? <img src={user.photoURL || user.photoUrl || profileData?.photoURL || profileData?.photoUrl} alt={displayName} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-3xl font-semibold text-muted-foreground">{displayName.split(' ').map((name: string) => name[0]).slice(0, 2).join('')}</div>}
+            </div>
+            {canEditFaculty && <label className="mb-3 inline-flex cursor-pointer items-center rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted">{imageUploading ? 'Uploading...' : 'Change photograph'}<input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" disabled={imageUploading} onChange={(event) => { handleFacultyPhotoUpload(event.target.files?.[0]); event.currentTarget.value = ''; }} /></label>}
+            <h2 className="text-lg font-semibold">{displayName}</h2><p className="mt-1 text-sm text-muted-foreground">{user.program || profileData?.program || profileData?.department || 'Student'}</p><Badge variant="outline" className="mt-3">{user.status || 'active'}</Badge>
+          </div>
+          <div className="card-elevated p-6"><div className="flex items-center gap-2 border-b border-border pb-4"><GraduationCap className="h-5 w-5 text-muted-foreground" /><h2 className="text-lg font-semibold">Student academic profile</h2></div><div className="mt-5 grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3"><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Program</p><p className="mt-1 font-medium">{user.program || profileData?.program || profileData?.degree || 'Not provided'}</p></div><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Enrollment number</p><p className="mt-1 font-mono font-medium">{user.enrollmentNumber || profileData?.enrollmentNumber || 'Not provided'}</p></div><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Roll number</p><p className="mt-1 font-mono font-medium">{user.rollNumber || profileData?.rollNumber || 'Not provided'}</p></div><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Batch</p><p className="mt-1 font-medium">{user.batch || profileData?.batch || 'Not provided'}</p></div><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Semester / section</p><p className="mt-1 font-medium">{[user.semester || profileData?.semester, user.section || profileData?.section].filter(Boolean).join(' / ') || 'Not provided'}</p></div><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Department</p><p className="mt-1 font-medium">{user.department || profileData?.department || 'Not provided'}</p></div></div></div>
         </div>
       )}
 
       {/* Student Academic Data */}
       {user.role === 'student' && (
-        <>
+        <div className="grid gap-6 xl:grid-cols-2">
           {/* Enrolled Courses */}
-          <div className="card-elevated p-6">
+          <div className="card-elevated p-6 xl:col-span-2">
             <h2 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
               <BookOpen className="w-5 h-5" />
               Enrolled Courses ({enrollments.length})
@@ -343,7 +439,7 @@ export default function UserDetail() {
           </div>
 
           {/* Grades */}
-          <div className="card-elevated p-6">
+          <div className="card-elevated p-6 xl:col-span-2">
             <h2 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
               <Award className="w-5 h-5" />
               Grades & Results ({grades.length})
@@ -450,7 +546,7 @@ export default function UserDetail() {
               <p className="text-muted-foreground text-center py-4">No assignments submitted</p>
             )}
           </div>
-        </>
+        </div>
       )}
 
       {/* Financial Records */}
@@ -645,6 +741,19 @@ export default function UserDetail() {
           )}
         </div>
       </div>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
+          <DialogHeader><DialogTitle>Edit {user.role === 'student' ? 'student' : 'faculty'} profile</DialogTitle><DialogDescription>Update profile sections using the existing account record. Empty optional fields remain blank.</DialogDescription></DialogHeader>
+          {formError && <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">{formError}</div>}
+          <div className="space-y-6 py-2">
+            {user.role === 'student' && <section className="rounded-lg border border-border/70 p-4"><h3 className="mb-4 text-sm font-semibold tracking-wide text-foreground">Academic record</h3><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[['program','Program / degree'],['enrollmentNumber','Enrollment number'],['registrationNumber','Registration number'],['rollNumber','Roll number'],['batch','Batch'],['semester','Semester'],['section','Section']].map(([key,label]) => <div key={key}><Label htmlFor={`student-${key}`}>{label}</Label><Input id={`student-${key}`} value={(facultyForm as any)[key]} onChange={(event) => setFacultyForm({ ...facultyForm, [key]: event.target.value })} className="mt-1" /></div>)}</div></section>}
+            {[['Identity & contact', [['fullName','Full name','text'],['firstName','First name','text'],['lastName','Last name','text'],['email','Work email','email'],['phone','Phone','tel'],['gender','Gender','text']]], ['Employment', [['department','Department','text'],['designation','Designation','text'],['employmentType','Employment type','text'],['reportingManager','Reporting manager','text'],['employeeStatus','Status','text'],['joiningDate','Joining date','date'],['experience','Years of experience','number']]], ['Address', [['address','Street address','text'],['city','City','text'],['state','State / province','text'],['country','Country','text'],['postalCode','Postal code','text']]], ['Education', [['highestQualification','Highest qualification','text'],['degree','Degree / subject','text'],['university','University / institution','text'],['graduationYear','Graduation year','number']]], ['Banking & payroll', [['bankName','Bank name','text'],['accountHolderName','Account holder','text'],['accountNumber','Account number','text'],['ifsc','IFSC','text'],['pan','PAN / tax ID','text'],['payrollId','Payroll ID','text']]]].map(([section, fields]: any) => <section key={section} className="rounded-lg border border-border/70 p-4"><h3 className="mb-4 text-sm font-semibold tracking-wide text-foreground">{section}</h3><div className="grid gap-4 sm:grid-cols-2">{fields.map(([key, label, type]: string[]) => <div key={key} className={key === 'address' ? 'sm:col-span-2' : ''}><Label htmlFor={`faculty-${key}`}>{label}</Label><Input id={`faculty-${key}`} type={type} min={type === 'number' ? 0 : undefined} value={(facultyForm as any)[key]} onChange={(event) => setFacultyForm({ ...facultyForm, [key]: event.target.value })} className="mt-1" /></div>)}</div></section>)}
+            <section className="rounded-lg border border-border/70 p-4"><h3 className="mb-4 text-sm font-semibold tracking-wide text-foreground">Expertise & profile</h3><div className="grid gap-4 sm:grid-cols-2"><div><Label htmlFor="faculty-specialization">Specialization</Label><Input id="faculty-specialization" value={facultyForm.specialization} onChange={(event) => setFacultyForm({ ...facultyForm, specialization: event.target.value })} className="mt-1" /></div><div><Label htmlFor="faculty-areasOfExpertise">Areas of expertise</Label><Input id="faculty-areasOfExpertise" value={facultyForm.areasOfExpertise} onChange={(event) => setFacultyForm({ ...facultyForm, areasOfExpertise: event.target.value })} className="mt-1" /></div><div><Label htmlFor="faculty-skills">Skills (comma separated)</Label><Input id="faculty-skills" value={facultyForm.skills} onChange={(event) => setFacultyForm({ ...facultyForm, skills: event.target.value })} className="mt-1" /></div><div><Label htmlFor="faculty-certifications">Certifications (one per line)</Label><Input id="faculty-certifications" value={facultyForm.certifications} onChange={(event) => setFacultyForm({ ...facultyForm, certifications: event.target.value })} className="mt-1" /></div><div className="sm:col-span-2"><Label htmlFor="faculty-qualifications">Qualifications (one per line)</Label><textarea id="faculty-qualifications" value={facultyForm.qualifications} onChange={(event) => setFacultyForm({ ...facultyForm, qualifications: event.target.value })} className="mt-1 min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></div><div className="sm:col-span-2"><Label htmlFor="faculty-researchInterests">Research interests</Label><textarea id="faculty-researchInterests" value={facultyForm.researchInterests} onChange={(event) => setFacultyForm({ ...facultyForm, researchInterests: event.target.value })} className="mt-1 min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></div><div className="sm:col-span-2"><Label htmlFor="faculty-bio">Professional biography</Label><textarea id="faculty-bio" value={facultyForm.bio} onChange={(event) => setFacultyForm({ ...facultyForm, bio: event.target.value })} className="mt-1 min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></div></div></section>
+          </div>
+          <DialogFooter className="sticky bottom-0 border-t border-border bg-background pt-4"><Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button><Button onClick={saveFacultyDetails} disabled={saving}>{saving ? 'Saving…' : 'Save faculty details'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

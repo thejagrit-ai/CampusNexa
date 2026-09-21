@@ -92,7 +92,6 @@ const AcademicsHelp = lazy(() => import("./pages/help/Academics"));
 const SettingsPrivacy = lazy(() => import("./pages/help/SettingsPrivacy"));
 
 // Feature Pages
-const ChatPage = lazy(() => import("./pages/Chat"));
 const HostelIssues = lazy(() => import("./pages/HostelIssues"));
 const NightCanteen = lazy(() => import("./pages/NightCanteen").then(m => ({ default: m.NightCanteen })));
 const CampusMap = lazy(() => import("./pages/CampusMap"));
@@ -137,7 +136,6 @@ const PageLoader = () => (
 const AppRoutes = () => (
   <>
     <Route path="dashboard" element={<Dashboard />} />
-    <Route path="chat" element={<ChatPage />} />
     <Route path="profile" element={<StudentProfile />} />
     <Route path="users" element={<UsersPage />} />
     <Route path="users/add" element={<AddUser />} />

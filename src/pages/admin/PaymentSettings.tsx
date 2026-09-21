@@ -51,6 +51,18 @@ interface PaymentConfig {
   isActive: boolean;
   lastUpdated: any;
   updatedBy: string;
+  receiptTemplate?: ReceiptTemplateConfig;
+}
+
+interface ReceiptTemplateConfig {
+  institutionName: string;
+  title: string;
+  address: string;
+  email: string;
+  phone: string;
+  footer: string;
+  accentColor: string;
+  showPaymentMethod: boolean;
 }
 
 interface Props {
@@ -80,6 +92,7 @@ export default function PaymentSettings({ embedded }: Props) {
   // Razorpay fields
   const [apiKey, setApiKey] = useState('');
   const [apiSecret, setApiSecret] = useState('');
+  const [receiptTemplate, setReceiptTemplate] = useState<ReceiptTemplateConfig>({ institutionName: '', title: 'FEE PAYMENT RECEIPT', address: '', email: '', phone: '', footer: 'Thank you for your payment.', accentColor: '#111827', showPaymentMethod: true });
 
   useEffect(() => {
     if (authLoading) return;
@@ -107,6 +120,7 @@ export default function PaymentSettings({ embedded }: Props) {
         setIfscCode(settings.bank.ifscCode);
         setBranch(settings.bank.branch);
       }
+      if (settings.receiptTemplate) setReceiptTemplate((current) => ({ ...current, ...settings.receiptTemplate }));
     }
   }, [settings]);
 
@@ -160,6 +174,7 @@ export default function PaymentSettings({ embedded }: Props) {
         isActive: true,
         lastUpdated: serverTimestamp(),
         updatedBy: user?.email || 'unknown',
+        receiptTemplate,
       };
 
       if (method === 'upi') {
@@ -544,6 +559,24 @@ export default function PaymentSettings({ embedded }: Props) {
               </div>
             </>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Fee receipt template</CardTitle>
+          <CardDescription>Configure the generic receipt students download after a payment is marked paid.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <div><label className="text-sm font-medium">Institution name</label><Input className="mt-1" placeholder="University name" value={receiptTemplate.institutionName} onChange={(e) => setReceiptTemplate({ ...receiptTemplate, institutionName: e.target.value })} /></div>
+          <div><label className="text-sm font-medium">Receipt title</label><Input className="mt-1" value={receiptTemplate.title} onChange={(e) => setReceiptTemplate({ ...receiptTemplate, title: e.target.value })} /></div>
+          <div className="sm:col-span-2"><label className="text-sm font-medium">Address</label><Input className="mt-1" placeholder="Campus address" value={receiptTemplate.address} onChange={(e) => setReceiptTemplate({ ...receiptTemplate, address: e.target.value })} /></div>
+          <div><label className="text-sm font-medium">Receipt email</label><Input className="mt-1" type="email" value={receiptTemplate.email} onChange={(e) => setReceiptTemplate({ ...receiptTemplate, email: e.target.value })} /></div>
+          <div><label className="text-sm font-medium">Receipt phone</label><Input className="mt-1" value={receiptTemplate.phone} onChange={(e) => setReceiptTemplate({ ...receiptTemplate, phone: e.target.value })} /></div>
+          <div><label className="text-sm font-medium">Accent color</label><Input className="mt-1 h-10 p-1" type="color" value={receiptTemplate.accentColor} onChange={(e) => setReceiptTemplate({ ...receiptTemplate, accentColor: e.target.value })} /></div>
+          <div className="flex items-center gap-2 pt-6"><input id="receipt-payment-method" type="checkbox" checked={receiptTemplate.showPaymentMethod} onChange={(e) => setReceiptTemplate({ ...receiptTemplate, showPaymentMethod: e.target.checked })} /><label htmlFor="receipt-payment-method" className="text-sm">Show payment method on receipt</label></div>
+          <div className="sm:col-span-2"><label className="text-sm font-medium">Footer note</label><Input className="mt-1" placeholder="Thank you for your payment." value={receiptTemplate.footer} onChange={(e) => setReceiptTemplate({ ...receiptTemplate, footer: e.target.value })} /></div>
+          <div className="sm:col-span-2 rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">Receipt fields are populated from the actual student and payment record: student name, ID, department, description, category, amount, transaction/receipt number, payment date, and status.</div>
         </CardContent>
       </Card>
 

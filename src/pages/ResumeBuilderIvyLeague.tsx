@@ -52,6 +52,7 @@ interface PersonalInfo {
   phone: string;
   linkedin: string;
   github: string;
+  summary: string;
 }
 
 interface Education {
@@ -98,6 +99,16 @@ interface AnalysisResult {
   suggestions: string[];
   keywordMatch: { keyword: string; found: boolean }[];
 }
+type ResumeTemplate = "classic" | "modern" | "minimal" | "academic" | "compact";
+interface CustomResumeSection { id: string; title: string; items: string[]; }
+
+const resumeTemplates: { id: ResumeTemplate; name: string; description: string }[] = [
+  { id: "classic", name: "Classic ATS", description: "Single-column, conservative and parser-safe" },
+  { id: "modern", name: "Modern", description: "Clean hierarchy with subtle accent styling" },
+  { id: "minimal", name: "Minimal", description: "Maximum whitespace and easy scanning" },
+  { id: "academic", name: "Academic", description: "Education and research-forward layout" },
+  { id: "compact", name: "Compact", description: "Dense one-page layout for early careers" },
+];
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
 // pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 const storage = getStorage(app);
@@ -117,6 +128,8 @@ export default function ResumeBuilderIvyLeague() {
   );
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [activeTab, setActiveTab] = useState("builder");
+  const [selectedTemplate, setSelectedTemplate] = useState<ResumeTemplate>("classic");
+  const [customSections, setCustomSections] = useState<CustomResumeSection[]>([]);
 
   // Layout Controls
   const [zoom, setZoom] = useState(0.85); // Default scaled down to fit better
@@ -125,54 +138,33 @@ export default function ResumeBuilderIvyLeague() {
   const [preview, setPreview] = useState(false);
   const [resumeData, setResumeData] = useState<ResumeData>({
     personalInfo: {
-      name: "ARJUN PATEL",
-      location: "Kanpur, Uttar Pradesh",
-      email: "arjun.patel@pec.edu",
-      phone: "+91 7700454732",
-      linkedin: "linkedin.com/in/arjunpatel",
-      github: "github.com/arjuncode",
+      name: "",
+      location: "",
+      email: "",
+      phone: "",
+      linkedin: "",
+      github: "",
+      summary: "",
     },
     // Dummy Data Pre-filled
     education: [
       {
-        institution: "PUNJAB ENGINEERING COLLEGE",
-        degree: "Bachelor of Technology",
-        major: "Computer Science & Engineering",
-        year: "Expected 2026",
-        gpa: "8.4/10.0",
+        institution: "",
+        degree: "",
+        major: "",
+        year: "",
+        gpa: "",
         honors: "",
-        coursework: ["Data Structures", "Algorithms", "DBMS", "OS"],
+        coursework: [],
       },
     ],
-    experience: [
-      {
-        company: "TECH INNOVATIONS INC.",
-        title: "Software Engineering Intern",
-        duration: "Jun 2024 - Aug 2024",
-        location: "Bangalore, India",
-        description: [
-          "Developed RESTful APIs using Node.js and Express to handle 10k+ daily requests.",
-          "Optimized MongoDB queries reducing response time by 40%.",
-          "Collaborated with frontend team to integrate React components.",
-        ],
-      },
-    ],
-    projects: [
-      {
-        name: "SMART CAMPUS APP",
-        date: "Jan 2024",
-        description: [
-          "Built a Flutter based mobile application for campus navigation and attendance.",
-          "Integrated Firebase for real-time notifications and data sync.",
-          "Deployed to Play Store with over 500+ active student users.",
-        ],
-      },
-    ],
+    experience: [],
+    projects: [],
     skills: {
-      technical: "Unreal Engine 5, Blender, React.js, Node.js",
-      programming: "C++, Python, JavaScript, TypeScript, Dart",
-      languages: "English (Fluent), Hindi (Native)",
-      certifications: "AWS Cloud Practitioner, Meta Frontend Developer",
+      technical: "",
+      programming: "",
+      languages: "",
+      certifications: "",
     },
   });
 
@@ -209,6 +201,7 @@ export default function ResumeBuilderIvyLeague() {
               github: profile.githubUsername
                 ? `github.com/${profile.githubUsername}`
                 : prev.personalInfo.github,
+              summary: profile.bio || profile.about || prev.personalInfo.summary,
             },
             education: [
               {
@@ -307,11 +300,11 @@ const extractTextFromPDF = async (file: File): Promise<string> => {
       experience: [
         ...prev.experience,
         {
-          company: "Company Name",
-          title: "Job Title",
-          duration: "Date Range",
-          location: "Location",
-          description: ["Description bullet point"],
+          company: "",
+          title: "",
+          duration: "",
+          location: "",
+          description: [""],
         },
       ],
     }));
@@ -323,9 +316,9 @@ const extractTextFromPDF = async (file: File): Promise<string> => {
       projects: [
         ...prev.projects,
         {
-          name: "Project Name",
-          date: "Date",
-          description: ["Project description"],
+          name: "",
+          date: "",
+          description: [""],
         },
       ],
     }));
@@ -357,6 +350,10 @@ const extractTextFromPDF = async (file: File): Promise<string> => {
       return { ...prev, projects: arr };
     });
   };
+
+  const addCustomSection = () => setCustomSections((sections) => [...sections, { id: `${Date.now()}-${sections.length}`, title: "", items: [""] }]);
+  const updateCustomSection = (id: string, patch: Partial<CustomResumeSection>) => setCustomSections((sections) => sections.map((section) => section.id === id ? { ...section, ...patch } : section));
+  const removeCustomSection = (id: string) => setCustomSections((sections) => sections.filter((section) => section.id !== id));
 
   const downloadPDF = async () => {
     const doc = new jsPDF();
@@ -398,10 +395,20 @@ const extractTextFromPDF = async (file: File): Promise<string> => {
       yPos += 7;
     };
 
+    if (resumeData.personalInfo.summary) {
+      addSection("Professional Summary");
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      const summaryLines = doc.splitTextToSize(resumeData.personalInfo.summary, 180);
+      doc.text(summaryLines, 14, yPos);
+      yPos += summaryLines.length * 4 + 3;
+    }
+
     // Education
-    if (resumeData.education.length > 0) {
+    const educationEntries = resumeData.education.filter((edu) => edu.institution || edu.degree || edu.major);
+    if (educationEntries.length > 0) {
       addSection("Education");
-      resumeData.education.forEach((edu) => {
+      educationEntries.forEach((edu) => {
         doc.setFontSize(10);
         doc.setFont("helvetica", "bold");
         doc.text(edu.institution, 14, yPos);
@@ -498,6 +505,18 @@ const extractTextFromPDF = async (file: File): Promise<string> => {
       }
     });
 
+    customSections.filter((section) => section.title.trim() && section.items.some((item) => item.trim())).forEach((section) => {
+      addSection(section.title);
+      section.items.filter(Boolean).forEach((item) => {
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        const lines = doc.splitTextToSize(`• ${item}`, 180);
+        doc.text(lines, 18, yPos);
+        yPos += lines.length * 4;
+      });
+      yPos += 2;
+    });
+
     doc.save(`${resumeData.personalInfo.name}_Resume.pdf`);
   };
 
@@ -526,7 +545,7 @@ const handleAnalyze = async (customFile?: File) => {
         }
       } else {
         // CASE 2: Builder Data - Use structured JSON
-        resumeContext = JSON.stringify(resumeData, null, 2);
+        resumeContext = JSON.stringify({ ...resumeData, customSections }, null, 2);
       }
 
       const response = await openai.chat.completions.create({
@@ -591,7 +610,7 @@ const handleAnalyze = async (customFile?: File) => {
     <div className="min-h-screen bg-background pb-12">
       {/* Top Navigation Bar */}
       <div className="bg-card border-b border-border sticky top-0 z-30 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4">
+        <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row items-center justify-between py-3 gap-4">
             <div className="flex items-center gap-3">
               {settings?.logoUrl ? (
@@ -679,7 +698,7 @@ const handleAnalyze = async (customFile?: File) => {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="w-full px-4 py-6 sm:px-6 lg:px-8">
         {/* BUILDER TAB */}
         {activeTab === "builder" && (
           <div className="grid lg:grid-cols-12 gap-6 items-start">
@@ -690,6 +709,15 @@ const handleAnalyze = async (customFile?: File) => {
                 animate={{ opacity: 1 }}
                 className="lg:col-span-6 space-y-6"
               >
+                <section className="card-elevated p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div><h2 className="font-semibold">Choose a resume template</h2><p className="text-xs text-muted-foreground">All templates use semantic headings, standard fonts and a single-column ATS-safe structure.</p></div>
+                    <Badge variant="outline">ATS ready</Badge>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {resumeTemplates.map((template) => <button key={template.id} type="button" onClick={() => setSelectedTemplate(template.id)} className={cn("rounded-lg border p-3 text-left transition-colors", selectedTemplate === template.id ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:bg-muted/50")}><span className="block text-sm font-medium">{template.name}</span><span className="mt-1 block text-xs text-muted-foreground">{template.description}</span></button>)}
+                  </div>
+                </section>
                 <Tabs defaultValue="personal" className="w-full">
                   <TabsList className="w-full justify-start overflow-auto no-scrollbar">
                     <TabsTrigger value="personal">Personal</TabsTrigger>
@@ -697,6 +725,7 @@ const handleAnalyze = async (customFile?: File) => {
                     <TabsTrigger value="experience">Experience</TabsTrigger>
                     <TabsTrigger value="projects">Projects</TabsTrigger>
                     <TabsTrigger value="skills">Skills</TabsTrigger>
+                    <TabsTrigger value="additional">Additional</TabsTrigger>
                   </TabsList>
 
                   {/* Content Panels (Same as before, preserved logic) */}
@@ -758,6 +787,10 @@ const handleAnalyze = async (customFile?: File) => {
                             handlePersonalInfoChange("github", e.target.value)
                           }
                         />
+                      </div>
+                      <div className="space-y-2 md:col-span-2">
+                        <label className="text-sm font-medium">Professional summary <span className="text-xs font-normal text-muted-foreground">(2–4 lines, keyword focused)</span></label>
+                        <Textarea value={resumeData.personalInfo.summary} onChange={(e) => handlePersonalInfoChange("summary", e.target.value)} placeholder="Describe your strongest skills, experience and target role." rows={4} />
                       </div>
                     </div>
                   </TabsContent>
@@ -1054,6 +1087,12 @@ const handleAnalyze = async (customFile?: File) => {
                       />
                     </div>
                   </TabsContent>
+
+                  <TabsContent value="additional" className="space-y-4 mt-4">
+                    <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4"><h3 className="font-semibold">Add your own sections</h3><p className="mt-1 text-xs text-muted-foreground">Add certifications, languages, volunteering, awards, publications, leadership, interests, or any section relevant to your target role.</p></div>
+                    {customSections.map((section) => <div key={section.id} className="card-elevated relative space-y-4 p-5"><Button size="icon" variant="ghost" className="absolute right-2 top-2 text-destructive" onClick={() => removeCustomSection(section.id)}><Trash2 className="h-4 w-4" /></Button><div><label className="text-sm font-medium">Section title</label><Input className="mt-1" placeholder="e.g. Certifications, Volunteering, Awards" value={section.title} onChange={(event) => updateCustomSection(section.id, { title: event.target.value })} /></div><div><label className="text-sm font-medium">Entries <span className="font-normal text-muted-foreground">(one per line)</span></label><Textarea className="mt-1" rows={4} placeholder="AWS Certified Cloud Practitioner\nDean's List, 2024" value={section.items.join("\n")} onChange={(event) => updateCustomSection(section.id, { items: event.target.value.split("\n") })} /></div></div>)}
+                    <Button onClick={addCustomSection} variant="outline" className="w-full"><Plus className="mr-2 h-4 w-4" />Add custom section</Button>
+                  </TabsContent>
                 </Tabs>
               </motion.div>
             )}
@@ -1070,7 +1109,7 @@ const handleAnalyze = async (customFile?: File) => {
               )}
             >
               <div
-                className="bg-white text-black shadow-2xl origin-top-left transition-transform duration-200"
+                className={cn("bg-white text-black shadow-2xl origin-top-left transition-transform duration-200", selectedTemplate === "modern" && "border-t-[10px] border-blue-700", selectedTemplate === "academic" && "border-t-[10px] border-slate-700", selectedTemplate === "minimal" && "shadow-xl", selectedTemplate === "compact" && "text-[95%]")}
                 style={{
                   width: "8.5in",
                   minHeight: "11in",
@@ -1079,10 +1118,10 @@ const handleAnalyze = async (customFile?: File) => {
                   margin: preview ? "0 auto" : "0 auto",
                 }}
               >
-                <div className="p-[0.75in]">
+                <div className={cn("p-[0.75in]", selectedTemplate === "compact" && "p-[0.55in]", selectedTemplate === "minimal" && "p-[0.9in]")}>
                   {/* Resume Header */}
-                  <div className="text-center border-b-2 border-black pb-4 mb-4">
-                    <h1 className="text-3xl font-bold tracking-widest mb-3">
+                  <div className={cn("text-center border-b-2 border-black pb-4 mb-4", selectedTemplate === "modern" && "text-left border-blue-700", selectedTemplate === "academic" && "text-left")}>
+                    <h1 className={cn("text-3xl font-bold tracking-widest mb-3", selectedTemplate === "minimal" && "tracking-normal", selectedTemplate === "modern" && "text-blue-900")}>
                       {resumeData.personalInfo.name.toUpperCase()}
                     </h1>
                     <div className="text-xs flex flex-wrap justify-center gap-x-2 text-gray-800">
@@ -1110,12 +1149,13 @@ const handleAnalyze = async (customFile?: File) => {
 
                   {/* Resume Body */}
                   <div className="space-y-5">
+                    {resumeData.personalInfo.summary && <section><h2 className="text-xs font-bold border-b border-black mb-2 uppercase tracking-wider pb-0.5">Professional Summary</h2><p className="text-xs leading-relaxed">{resumeData.personalInfo.summary}</p></section>}
                     {/* Education */}
                     <section>
                       <h2 className="text-xs font-bold border-b border-black mb-2 uppercase tracking-wider pb-0.5">
                         Education
                       </h2>
-                      {resumeData.education.map((edu, i) => (
+                      {resumeData.education.filter((edu) => edu.institution || edu.degree || edu.major).map((edu, i) => (
                         <div key={i} className="mb-3">
                           <div className="flex justify-between font-bold text-sm">
                             <span>{edu.institution.toUpperCase()}</span>
@@ -1221,6 +1261,7 @@ const handleAnalyze = async (customFile?: File) => {
                         )}
                       </div>
                     </section>
+                    {customSections.filter((section) => section.title.trim() && section.items.some((item) => item.trim())).map((section) => <section key={section.id}><h2 className="text-xs font-bold border-b border-black mb-2 uppercase tracking-wider pb-0.5">{section.title}</h2><ul className="list-disc list-outside ml-4 text-xs space-y-1 leading-normal">{section.items.filter(Boolean).map((item, index) => <li key={index}>{item}</li>)}</ul></section>)}
                   </div>
                 </div>
               </div>

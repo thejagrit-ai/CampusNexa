@@ -63,7 +63,7 @@ export function StudentProfile() {
     cgpa: 0,
     attendance: 0,
     credits: 0,
-    rank: 'Top 15%',
+    rank: 'Not calculated',
   });
   const [academicHistory, setAcademicHistory] = useState<any[]>([]);
   const [attendanceBreakdown, setAttendanceBreakdown] = useState<any[]>([]);
@@ -83,18 +83,25 @@ export function StudentProfile() {
       try {
         // Fetch user document
         const userDoc = await getDoc(doc(db, 'users', user.uid));
-        const userInfo = userDoc.data();
+        const userInfo = userDoc.exists()
+          ? userDoc.data()
+          : { fullName: user.displayName || '', email: user.email || '', role: 'student' };
         setUserData(userInfo);
 
-        // Fetch student profile if student
+        // Fetch the role-specific profile when available. Some accounts (admins/faculty)
+        // intentionally do not have a studentProfiles document, so fall back to users.
         if (userInfo?.role === 'student') {
           const profileDoc = await getDoc(doc(db, 'studentProfiles', user.uid));
           const pData = profileDoc.data();
-          setProfileData(pData);
+          setProfileData(pData || userInfo);
           
           if (pData) {
             await fetchProfileData(user.uid, pData);
           }
+        } else if (userInfo) {
+          const profileCollection = userInfo.role === 'faculty' ? 'facultyProfiles' : userInfo.role === 'college_admin' || userInfo.role === 'super_admin' ? 'collegeAdminProfiles' : null;
+          const profileDoc = profileCollection ? await getDoc(doc(db, profileCollection, user.uid)) : null;
+          setProfileData(profileDoc?.exists() ? profileDoc.data() : userInfo);
         }
       } catch (error) {
         console.error('Error fetching profile:', error);
@@ -224,7 +231,7 @@ export function StudentProfile() {
         cgpa: totalCredits > 0 ? Math.round((totalGradePoints / totalCredits) * 100) / 100 : 0,
         attendance: overallAttendance,
         credits: totalCredits,
-        rank: 'Top 12%', // Mocking rank for now
+        rank: 'Not calculated',
       });
 
     } catch (error) {
@@ -345,6 +352,40 @@ export function StudentProfile() {
           </Button>
         </div>
       </div>
+    );
+  }
+
+  if (userData.role !== 'student') {
+    const displayName = userData.fullName || [userData.firstName, userData.lastName].filter(Boolean).join(' ') || userData.email || 'Account profile';
+    const roleLabel = String(userData.role || 'account').replace(/_/g, ' ');
+    const photoUrl = userData.photoURL || userData.photoUrl || profileData.photoURL || profileData.photoUrl;
+    const initials = displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+    const value = (...keys: string[]) => keys.map((key) => userData[key] ?? profileData[key]).find((entry) => entry !== undefined && entry !== null && entry !== '') || 'Not provided';
+    const profileSections = [
+      { title: 'Professional information', fields: [['Department', value('department')], ['Designation', value('designation')], ['Employee ID', value('employeeId')], ['Status', value('status')]] },
+      { title: 'Contact information', fields: [['Email', value('email')], ['Phone', value('phone')], ['Address', value('address', 'currentAddress')], ['City / state', [value('city'), value('state')].filter((entry) => entry !== 'Not provided').join(' / ') || 'Not provided']] },
+    ];
+
+    return (
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+        <div className="card-elevated p-6">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+            <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-muted text-2xl font-semibold text-muted-foreground">
+              {photoUrl ? <img src={photoUrl} alt={displayName} className="h-full w-full object-cover" /> : initials}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2"><h1 className="text-2xl font-bold tracking-tight">{displayName}</h1><Badge variant="secondary" className="capitalize">{roleLabel}</Badge></div>
+              <p className="mt-1 text-muted-foreground">{value('designation', 'department')}</p>
+              <p className="mt-3 text-sm text-muted-foreground">{value('email')} {value('phone') !== 'Not provided' && `· ${value('phone')}`}</p>
+            </div>
+            {userData.role !== 'placement_officer' && <Button variant="outline" onClick={() => navigate('/settings')}><Edit2 className="mr-2 h-4 w-4" />Edit profile</Button>}
+          </div>
+        </div>
+        <div className="grid gap-6 lg:grid-cols-2">
+          {profileSections.map(({ title, fields }) => <section key={title} className="card-elevated p-6"><h2 className="mb-5 text-lg font-semibold">{title}</h2><div className="grid gap-4 sm:grid-cols-2">{fields.map(([label, fieldValue]) => <div key={label}><p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 break-words font-medium">{fieldValue}</p></div>)}</div></section>)}
+        </div>
+        <section className="card-elevated p-6"><h2 className="mb-5 text-lg font-semibold">Account information</h2><div className="grid gap-4 sm:grid-cols-3"><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Account created</p><p className="mt-1 font-medium">{userData.createdAt?.toDate ? userData.createdAt.toDate().toLocaleDateString() : 'Not provided'}</p></div><div><p className="text-xs uppercase tracking-wide text-muted-foreground">Last updated</p><p className="mt-1 font-medium">{userData.updatedAt?.toDate ? userData.updatedAt.toDate().toLocaleDateString() : 'Not provided'}</p></div><div><p className="text-xs uppercase tracking-wide text-muted-foreground">User ID</p><p className="mt-1 break-all font-mono text-sm">{auth.currentUser?.uid || 'Not provided'}</p></div></div></section>
+      </motion.div>
     );
   }
 

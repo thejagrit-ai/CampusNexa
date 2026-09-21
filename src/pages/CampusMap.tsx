@@ -496,7 +496,7 @@ export default function CampusMap() {
   return (
     <div className="min-h-screen bg-background p-4">
       {/* Header */}
-      <div className="max-w-7xl mx-auto mb-4">
+      <div className="w-full mb-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
@@ -598,7 +598,7 @@ export default function CampusMap() {
       </div>
 
       {/* Legend */}
-      <div className="max-w-7xl mx-auto mb-3">
+      <div className="w-full mb-3">
         <div className="flex flex-wrap gap-4">
           {categories.map(cat => (
             <div key={cat.id} className="flex items-center gap-1.5">
@@ -614,14 +614,14 @@ export default function CampusMap() {
       </div>
 
       {/* Map */}
-      <div className="max-w-7xl mx-auto">
+      <div className="w-full">
         <div 
           ref={mapContainerRef}
           className={cn(
             "relative rounded-xl border border-border overflow-auto bg-card",
             drawMode !== 'none' && "cursor-crosshair"
           )}
-          style={{ maxHeight: '75vh' }}
+           style={{ maxHeight: 'calc(100vh - 220px)', minHeight: 'min(700px, calc(100vh - 220px))' }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}

@@ -30,6 +30,7 @@ import {
   isMobile 
 } from '@/lib/upiPayment';
 import { getUPIConfig, generateTransactionId } from '@/config/upi';
+import { downloadFeeReceipt } from '@/lib/feeReceipt';
 
 interface Invoice {
   id: string;
@@ -280,6 +281,17 @@ export default function PaymentDetail() {
     toast.success(`${label} copied to clipboard`);
   };
 
+  const handleDownloadReceipt = async () => {
+    if (!invoice || invoice.status !== 'paid') return;
+    try {
+      const studentSnap = await getDoc(doc(db, 'users', invoice.studentId || user?.id || ''));
+      downloadFeeReceipt({ payment: invoice, student: studentSnap.exists() ? studentSnap.data() : user, institution: paymentSettings || {} });
+    } catch (error) {
+      console.error('Receipt generation failed:', error);
+      toast.error('Could not generate receipt');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -391,7 +403,7 @@ export default function PaymentDetail() {
           )}
           
           {invoice.status === 'paid' && (
-            <Button variant="outline" className="w-full mt-6">
+            <Button variant="outline" className="w-full mt-6" onClick={handleDownloadReceipt}>
               <Download className="w-4 h-4 mr-2" />
               Download Receipt
             </Button>

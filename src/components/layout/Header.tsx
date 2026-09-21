@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Bell, Search, User, ChevronDown, LogOut, Settings, HelpCircle, Menu, Palette, Building2 } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { ArrowLeft, Bell, Search, User, ChevronDown, LogOut, Settings, HelpCircle, Menu, Palette, Building2 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/config/firebase';
+import { db } from '@/config/firebase';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +18,6 @@ import {
 import { cn } from '@/lib/utils';
 import ThemeToggler from "../../components/ThemeToggler";
 import { LandingColorTheme } from '@/components/LandingColorTheme';
-import { GoogleTranslate } from '@/components/GoogleTranslate';
 import type { User as UserType } from '@/types';
 import {
   CommandDialog,
@@ -40,7 +41,19 @@ interface HeaderProps {
 
 export function Header({ user, sidebarCollapsed, isMobile, onMenuClick }: HeaderProps) {
   const navigate = useNavigate();
-  const [hasNotifications] = useState(true);
+  const location = useLocation();
+  const [hasNotifications, setHasNotifications] = useState(false);
+  const topLevelPaths = new Set(['/dashboard', '/users', '/courses', '/timetable', '/attendance', '/examinations', '/assignments', '/course-materials', '/finance', '/career', '/campus-map', '/canteen', '/admin/canteen', '/admin/hostel', '/settings', '/notifications', '/profile', '/resume-builder', '/hostel-issues', '/help']);
+  const pathSegments = location.pathname.split('/').filter(Boolean);
+  const isSubPage = pathSegments.length > 1 && !topLevelPaths.has(location.pathname);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const notificationsQuery = query(collection(db, 'notifications'), where('userId', '==', user.id));
+    return onSnapshot(notificationsQuery, (snapshot) => {
+      setHasNotifications(snapshot.docs.some((notification) => notification.data().read !== true));
+    }, (error) => console.error('Notification badge listener failed', error));
+  }, [user?.id]);
 
   const handleSignOut = async () => {
     try {
@@ -81,14 +94,16 @@ export function Header({ user, sidebarCollapsed, isMobile, onMenuClick }: Header
             <Menu className="w-5 h-5" />
           </Button>
         )}
-        {/* Search */}
-        <div className="relative flex-1 max-w-md mx-2 md:w-80 md:flex-none group z-50">
-           <CommandMenu navigate={navigate} />
+        {/* Search and contextual back navigation */}
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {isSubPage && <Button variant="ghost" size="icon" className="shrink-0" aria-label="Go back" onClick={() => window.history.length > 1 ? navigate(-1) : navigate('/dashboard')}><ArrowLeft className="h-4 w-4" /></Button>}
+          <div className="relative mx-2 max-w-md flex-1 group z-50 md:w-80 md:flex-none">
+             <CommandMenu navigate={navigate} />
+          </div>
         </div>
 
         {/* Right Section */}
         <div className="flex items-center gap-3 ml-auto">
-          <div className="scale-90 sm:scale-100"><GoogleTranslate containerId="google_translate_header" /></div>
           <div className="hidden md:block"><LandingColorTheme /></div>
           <div className="hidden md:block"><ThemeToggler/></div>
           {/* Notifications */}

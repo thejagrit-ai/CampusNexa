@@ -163,12 +163,12 @@ export function NightCanteen() {
   });
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
+    <div className="w-full px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-foreground mb-2 flex items-center gap-3">
             <UtensilsCrossed className="w-8 h-8 text-primary" />
-            Night Canteen
+            Canteen
           </h1>
           <p className="text-muted-foreground">Late night cravings sorted! Ordered straight to your room.</p>
         </div>

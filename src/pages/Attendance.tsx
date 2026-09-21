@@ -55,6 +55,7 @@ import BulkUpload from '@/components/BulkUpload';
 import * as XLSX from 'xlsx';
 import { exportAttendanceReport } from '@/lib/pdfExport';
 import PDFExportButton from '@/components/common/PDFExportButton';
+import StudentAttendanceDashboard from '@/components/attendance/StudentAttendanceDashboard';
 
 interface AttendanceRecord {
   id: string;
@@ -105,7 +106,7 @@ export default function Attendance() {
     return <AttendanceManager userId={user.uid} userRole={user.role} />;
   }
 
-  return <StudentAttendanceView userId={user.uid} />;
+  return <StudentAttendanceDashboard userId={user.uid} />;
 }
 
 function AttendanceManager({ userId, userRole }: { userId: string; userRole: string }) {

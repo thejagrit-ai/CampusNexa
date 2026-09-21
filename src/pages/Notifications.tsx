@@ -1,308 +1,55 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Bell, Check, CheckCheck, Trash2, Filter, Settings } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { onSnapshot, collection, deleteDoc, doc, query, updateDoc, where } from 'firebase/firestore';
+import { Bell, CheckCheck, Trash2, Inbox, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { db } from '@/config/firebase';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  type: 'info' | 'success' | 'warning' | 'alert';
-  time: string;
-  read: boolean;
-  category: 'academic' | 'placement' | 'finance' | 'system';
-}
+type Category = 'academic' | 'placement' | 'finance' | 'system' | 'general';
+interface NotificationRecord { id: string; title?: string; message?: string; type?: string; category?: Category; read?: boolean; createdAt?: { toDate?: () => Date } | Date; }
 
-const mockNotifications: Notification[] = [
-  {
-    id: '1',
-    title: 'Assignment Deadline',
-    message: 'Your Data Structures assignment is due tomorrow at 11:59 PM.',
-    type: 'warning',
-    time: '2 hours ago',
-    read: false,
-    category: 'academic',
-  },
-  {
-    id: '2',
-    title: 'New Job Posted',
-    message: 'TechCorp has posted a new Software Engineer position matching your profile.',
-    type: 'info',
-    time: '5 hours ago',
-    read: false,
-    category: 'placement',
-  },
-  {
-    id: '3',
-    title: 'Fee Payment Received',
-    message: 'Your semester fee payment of ₹75,000 has been successfully processed.',
-    type: 'success',
-    time: '1 day ago',
-    read: true,
-    category: 'finance',
-  },
-  {
-    id: '4',
-    title: 'Exam Schedule Released',
-    message: 'The end semester examination schedule has been published. Check your timetable.',
-    type: 'alert',
-    time: '2 days ago',
-    read: true,
-    category: 'academic',
-  },
-  {
-    id: '5',
-    title: 'Profile Update Required',
-    message: 'Please update your contact information to receive important notifications.',
-    type: 'warning',
-    time: '3 days ago',
-    read: true,
-    category: 'system',
-  },
-];
+const relativeTime = (value: NotificationRecord['createdAt']) => {
+  const date = value && typeof value === 'object' && 'toDate' in value && typeof value.toDate === 'function' ? value.toDate() : value instanceof Date ? value : null;
+  if (!date) return 'Just now';
+  const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+  if (seconds < 60) return 'Just now'; if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`; if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`; if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`; return date.toLocaleDateString();
+};
 
 export default function Notifications() {
-  const [notifications, setNotifications] = useState(mockNotifications);
+  const { user } = useAuth();
+  const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
   const [activeTab, setActiveTab] = useState('all');
+  const [loading, setLoading] = useState(true);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  useEffect(() => {
+    if (!user?.uid) return;
+    setLoading(true);
+    const notificationsQuery = query(collection(db, 'notifications'), where('userId', '==', user.uid));
+    const unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
+      const records = snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as NotificationRecord));
+      records.sort((a, b) => { const aDate = a.createdAt && 'toDate' in a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().getTime() : 0; const bDate = b.createdAt && 'toDate' in b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().getTime() : 0; return bDate - aDate; });
+      setNotifications(records); setLoading(false);
+    }, (error) => { console.error('Notification listener failed', error); toast.error('Could not load notifications'); setLoading(false); });
+    return unsubscribe;
+  }, [user?.uid]);
 
-  const markAsRead = (id: string) => {
-    setNotifications(prev => 
-      prev.map(n => n.id === id ? { ...n, read: true } : n)
-    );
-  };
-
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-  };
-
-  const deleteNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
-  };
-
-  const filteredNotifications = notifications.filter(n => {
-    if (activeTab === 'all') return true;
-    if (activeTab === 'unread') return !n.read;
-    return n.category === activeTab;
-  });
-
-  const getTypeStyles = (type: Notification['type']) => {
-    switch (type) {
-      case 'success': return 'bg-foreground/10 text-foreground border-border';
-      case 'warning': return 'bg-foreground/5 text-muted-foreground border-border';
-      case 'alert': return 'bg-foreground/20 text-foreground border-border font-bold';
-      default: return 'bg-foreground/5 text-muted-foreground border-border';
-    }
-  };
+  const unreadCount = notifications.filter((notification) => !notification.read).length;
+  const categories = new Set(notifications.map((notification) => notification.category || 'general'));
+  const filteredNotifications = useMemo(() => notifications.filter((notification) => activeTab === 'all' || (activeTab === 'unread' ? !notification.read : (notification.category || 'general') === activeTab)), [activeTab, notifications]);
+  const markAsRead = async (id: string) => { try { await updateDoc(doc(db, 'notifications', id), { read: true, readAt: new Date() }); } catch { toast.error('Could not update notification'); } };
+  const markAllAsRead = async () => { try { await Promise.all(notifications.filter((item) => !item.read).map((item) => updateDoc(doc(db, 'notifications', item.id), { read: true, readAt: new Date() }))); } catch { toast.error('Could not mark all notifications as read'); } };
+  const removeNotification = async (id: string) => { try { await deleteDoc(doc(db, 'notifications', id)); } catch { toast.error('Could not delete notification'); } };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
-          <p className="text-muted-foreground">Stay updated with important alerts</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {unreadCount > 0 && (
-            <Button variant="outline" size="sm" onClick={markAllAsRead}>
-              <CheckCheck className="w-4 h-4 mr-2" />
-              Mark all as read
-            </Button>
-          )}
-          
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        {/* Total Stats */}
-        <Card className="border-none shadow-lg bg-gradient-to-br from-blue-600 to-violet-600 text-white overflow-hidden relative group">
-          <CardContent className="pt-6 relative z-10">
-            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
-              <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm shrink-0">
-                <Bell className="w-5 h-5 md:w-6 md:h-6 text-white" />
-              </div>
-              <div className="text-center sm:text-left">
-                <p className="text-2xl md:text-3xl font-bold">{notifications.length}</p>
-                <p className="text-[10px] md:text-sm text-blue-100 font-medium whitespace-nowrap">Total Notifications</p>
-              </div>
-            </div>
-            <div className="absolute -bottom-4 -right-4 w-24 h-24 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-all" />
-          </CardContent>
-        </Card>
-
-        {/* Unread Stats */}
-        <Card className="border-none shadow-lg bg-gradient-to-br from-amber-500 to-orange-600 text-white overflow-hidden relative group">
-          <CardContent className="pt-6 relative z-10">
-            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
-              <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm shrink-0">
-                <Bell className="w-5 h-5 md:w-6 md:h-6 text-white animate-pulse" />
-              </div>
-              <div className="text-center sm:text-left">
-                <p className="text-2xl md:text-3xl font-bold">{unreadCount}</p>
-                <p className="text-[10px] md:text-sm text-amber-100 font-medium whitespace-nowrap">Unread Alerts</p>
-              </div>
-            </div>
-            <div className="absolute -bottom-4 -right-4 w-24 h-24 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-all" />
-          </CardContent>
-        </Card>
-
-        {/* Read Stats */}
-        <Card className="border-none shadow-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-white overflow-hidden relative group">
-          <CardContent className="pt-6 relative z-10">
-            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
-              <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm shrink-0">
-                <Check className="w-5 h-5 md:w-6 md:h-6 text-white" />
-              </div>
-              <div className="text-center sm:text-left">
-                <p className="text-2xl md:text-3xl font-bold">{notifications.length - unreadCount}</p>
-                <p className="text-[10px] md:text-sm text-emerald-100 font-medium whitespace-nowrap">Read Messages</p>
-              </div>
-            </div>
-            <div className="absolute -bottom-4 -right-4 w-24 h-24 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-all" />
-          </CardContent>
-        </Card>
-
-        {/* Categories Stats */}
-        <Card className="border-none shadow-lg bg-gradient-to-br from-indigo-500 to-cyan-500 text-white overflow-hidden relative group">
-          <CardContent className="pt-6 relative z-10">
-            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
-              <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm shrink-0">
-                <Filter className="w-5 h-5 md:w-6 md:h-6 text-white" />
-              </div>
-              <div className="text-center sm:text-left">
-                <p className="text-2xl md:text-3xl font-bold">4</p>
-                <p className="text-[10px] md:text-sm text-indigo-100 font-medium whitespace-nowrap">Active Categories</p>
-              </div>
-            </div>
-            <div className="absolute -bottom-4 -right-4 w-24 h-24 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-all" />
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Notifications List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>All Notifications</CardTitle>
-          <CardDescription>Click on a notification to mark it as read</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <div className="overflow-x-auto pb-2 mb-4 scrollbar-none">
-              <TabsList className="inline-flex h-auto p-1 bg-secondary/50 backdrop-blur-sm border border-border/50">
-                <TabsTrigger value="all" className="px-4 py-2 capitalize transition-all">All</TabsTrigger>
-                <TabsTrigger value="unread" className="px-4 py-2 capitalize transition-all">
-                  Unread
-                  {unreadCount > 0 && (
-                    <Badge variant="secondary" className="ml-2 h-5 px-1.5 bg-primary text-primary-foreground">
-                      {unreadCount}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="academic" className="px-4 py-2 capitalize transition-all">Academic</TabsTrigger>
-                <TabsTrigger value="placement" className="px-4 py-2 capitalize transition-all">Placement</TabsTrigger>
-                <TabsTrigger value="finance" className="px-4 py-2 capitalize transition-all">Finance</TabsTrigger>
-              </TabsList>
-            </div>
-
-            <div className="space-y-3">
-              {filteredNotifications.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <Bell className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>No notifications to show</p>
-                </div>
-              ) : (
-                filteredNotifications.map((notification, index) => (
-                  <motion.div
-                    key={notification.id}
-                    initial={{ opacity: 0, scale: 0.98 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    whileHover={{ scale: 1.01 }}
-                    transition={{ delay: index * 0.05 }}
-                    className={cn(
-                      'flex items-start gap-4 p-4 rounded-xl border-l-[6px] shadow-sm cursor-pointer transition-all duration-200 group',
-                      notification.read 
-                        ? 'bg-card border-l-muted border-y border-r hover:border-r-border/80' 
-                        : 'bg-gradient-to-r from-primary/5 to-transparent border-l-primary border-y border-r border-primary/10'
-                    )}
-                    onClick={() => {
-                      markAsRead(notification.id);
-                      // window.location.href = `/notifications/${notification.id}`; // Optional nav
-                    }}
-                  >
-                    <div className={cn(
-                      'p-2.5 rounded-full shadow-sm shrink-0 mt-1', 
-                      getTypeStyles(notification.type).replace('bg-foreground/10', 'bg-white shadow-inner').replace('text-muted-foreground', 'text-primary')
-                    )}>
-                       {/* Contextual Icon based on category/type logic could go here, defaulting to Bell */}
-                      <Bell className={cn(
-                        "w-5 h-5",
-                        notification.type === 'alert' ? "text-destructive" : 
-                        notification.type === 'success' ? "text-emerald-500" :
-                        notification.type === 'warning' ? "text-amber-500" : "text-primary"
-                      )} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className={cn(
-                            'font-semibold text-lg leading-tight',
-                            !notification.read ? 'text-primary' : 'text-foreground/80'
-                          )}>
-                            {notification.title}
-                          </p>
-                          <p className="text-sm text-foreground/70 mt-1 line-clamp-2 leading-relaxed">
-                            {notification.message}
-                          </p>
-                        </div>
-                        <div className="flex flex-col items-end gap-2 shrink-0">
-                          <span className="text-xs font-medium text-muted-foreground/80 bg-background/50 px-2 py-1 rounded-md border">
-                            {notification.time}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteNotification(notification.id);
-                            }}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 mt-3">
-                         <Badge variant="outline" className={cn(
-                           "text-xs px-2 py-0.5 border-primary/20",
-                            notification.category === 'academic' && "bg-blue-500/10 text-blue-600 border-blue-200",
-                            notification.category === 'placement' && "bg-purple-500/10 text-purple-600 border-purple-200",
-                            notification.category === 'finance' && "bg-emerald-500/10 text-emerald-600 border-emerald-200",
-                            notification.category === 'system' && "bg-gray-500/10 text-gray-600 border-gray-200",
-                         )}>
-                            {notification.category}
-                          </Badge>
-                          {!notification.read && (
-                            <span className="flex h-2 w-2 relative">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                            </span>
-                          )}
-                      </div>
-                    </div>
-                  </motion.div>
-                ))
-              )}
-            </div>
-          </Tabs>
-        </CardContent>
-      </Card>
+    <div className="w-full space-y-6 pb-8">
+      <div className="flex flex-col gap-4 border-b border-border/60 pb-5 sm:flex-row sm:items-end sm:justify-between"><div><div className="flex items-center gap-3"><h1 className="text-2xl font-bold tracking-tight text-foreground">Notifications</h1><Badge variant="secondary">{unreadCount} unread</Badge></div><p className="mt-1 text-sm text-muted-foreground">Live alerts and updates for your account.</p></div><div className="flex items-center gap-2">{unreadCount > 0 && <Button variant="outline" size="sm" onClick={markAllAsRead}><CheckCheck className="mr-2 h-4 w-4" />Mark all as read</Button>}<Button variant="ghost" size="icon" onClick={() => window.location.reload()} title="Refresh notifications"><RefreshCw className="h-4 w-4" /></Button></div></div>
+      <div className="grid gap-3 sm:grid-cols-3"><Card><CardContent className="flex items-center gap-3 p-4"><div className="rounded-lg bg-muted p-2"><Bell className="h-5 w-5" /></div><div><p className="text-2xl font-semibold">{notifications.length}</p><p className="text-xs text-muted-foreground">Total notifications</p></div></CardContent></Card><Card><CardContent className="flex items-center gap-3 p-4"><div className="rounded-lg bg-muted p-2"><Inbox className="h-5 w-5" /></div><div><p className="text-2xl font-semibold">{unreadCount}</p><p className="text-xs text-muted-foreground">Unread alerts</p></div></CardContent></Card><Card><CardContent className="flex items-center gap-3 p-4"><div className="rounded-lg bg-muted p-2"><CheckCheck className="h-5 w-5" /></div><div><p className="text-2xl font-semibold">{categories.size}</p><p className="text-xs text-muted-foreground">Active categories</p></div></CardContent></Card></div>
+      <Card><CardHeader className="border-b border-border/60 pb-4"><CardTitle className="text-lg">Activity feed</CardTitle><Tabs value={activeTab} onValueChange={setActiveTab} className="mt-3"><TabsList className="h-auto max-w-full justify-start overflow-x-auto"><TabsTrigger value="all">All</TabsTrigger><TabsTrigger value="unread">Unread {unreadCount > 0 && <Badge className="ml-2 h-5 px-1.5" variant="secondary">{unreadCount}</Badge>}</TabsTrigger>{Array.from(categories).filter((category) => category !== 'general').map((category) => <TabsTrigger key={category} value={category} className="capitalize">{category}</TabsTrigger>)}</TabsList></Tabs></CardHeader><CardContent className="p-4 sm:p-6">{loading ? <div className="flex items-center justify-center py-16 text-sm text-muted-foreground"><RefreshCw className="mr-2 h-4 w-4 animate-spin" />Syncing live notifications…</div> : filteredNotifications.length === 0 ? <div className="py-16 text-center"><Inbox className="mx-auto mb-3 h-10 w-10 text-muted-foreground/50" /><p className="font-medium text-foreground">No notifications</p><p className="mt-1 text-sm text-muted-foreground">New alerts will appear here in real time.</p></div> : <div className="divide-y divide-border">{filteredNotifications.map((notification) => <div key={notification.id} className={cn('group flex gap-3 py-4 first:pt-0 last:pb-0', !notification.read && 'bg-muted/20 -mx-3 px-3 rounded-lg')} onClick={() => !notification.read && markAsRead(notification.id)}><div className="mt-0.5 rounded-full border border-border bg-background p-2"><Bell className={cn('h-4 w-4', notification.read ? 'text-muted-foreground' : 'text-foreground')} /></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><p className={cn('font-medium', !notification.read && 'font-semibold')}>{notification.title || 'Notification'}</p><div className="flex items-center gap-2"><span className="whitespace-nowrap text-xs text-muted-foreground">{relativeTime(notification.createdAt)}</span><Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={(event) => { event.stopPropagation(); removeNotification(notification.id); }} aria-label="Delete notification"><Trash2 className="h-3.5 w-3.5" /></Button></div></div><p className="mt-1 text-sm text-muted-foreground">{notification.message || 'You have a new update.'}</p><div className="mt-2 flex items-center gap-2">{notification.category && <Badge variant="outline" className="capitalize">{notification.category}</Badge>}{!notification.read && <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-label="Unread" />}</div></div></div>)}</div>}</CardContent></Card>
     </div>
   );
 }

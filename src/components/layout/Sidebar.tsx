@@ -19,7 +19,6 @@ import {
   UserCog,
   Menu,
   X,
-  MessageCircle,
   UtensilsCrossed,
   Wrench,
   HelpCircle,
@@ -88,19 +87,6 @@ const navItems: NavItem[] = [
     label: "Reports",
     path: "/college/reports",
     roles: ["college_admin"],
-  },
-  {
-    icon:MessageCircle,
-    label: "Chat",
-    path: "/chat",
-    roles: [
-      "student",
-      "faculty",
-      "college_admin",
-      "super_admin",
-      "placement_officer",
-      "recruiter",
-    ],
   },
   {
     icon: Building2,
@@ -182,7 +168,7 @@ const navItems: NavItem[] = [
   },
   {
     icon: UtensilsCrossed,
-    label: "Night Canteen",
+    label: "Canteen",
     path: "/canteen",
     roles: ["student"],
   },
@@ -293,14 +279,11 @@ export function Sidebar({
         {collapsed ? (
           <button
             onClick={onToggle}
-            className="group relative p-2 rounded-md hover:bg-sidebar-accent transition-colors"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
             title="Expand sidebar"
+            aria-label="Expand sidebar"
           >
-            <GraduationCap className="absolute inset-0 m-auto w-5 h-5  text-primary-foreground transition-transform duration-200 scale-100 group-hover:scale-0 group-hover:-rotate-90" />
-
-            <ChevronRight className="absolute inset-0 m-auto w-5 h-5 text-primary-foreground transition-transform duration-200 rotate-90 scale-0 group-hover:rotate-0 group-hover:scale-100" />
-
-            <span className="sr-only">Expand sidebar</span>
+            <ChevronRight className="h-5 w-5" aria-hidden="true" />
           </button>
         ) : (
           <>
@@ -387,8 +370,7 @@ export function Sidebar({
             } else if (item.path === '/settings') {
               // Settings includes college settings admin page
               isActive = currentPath === item.path || 
-                        currentPath === '/admin/college-settings' ||
-                        currentPath === '/admin/hostel';
+                        currentPath === '/admin/college-settings';
             } else if (item.path === '/departments') {
               // Departments
               isActive = currentPath === item.path || 

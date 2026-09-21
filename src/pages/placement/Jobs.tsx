@@ -21,6 +21,7 @@ import {
   Upload,
   Eye,
   Paperclip,
+  ArrowLeft,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -67,6 +68,7 @@ import {
 import { usePermissions } from '@/hooks/usePermissions';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 interface Job {
   id: string;
@@ -85,6 +87,7 @@ interface Job {
 }
 
 export default function Jobs() {
+  const navigate = useNavigate();
   const { isRecruiter, isPlacementOfficer, isAdmin, isStudent, user } = usePermissions();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
@@ -365,9 +368,12 @@ export default function Jobs() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col gap-4 border-b border-border/60 pb-5 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Institutional Job Board</h1>
+          <Button variant="ghost" size="sm" className="mb-2 -ml-3 gap-2 text-muted-foreground" onClick={() => navigate('/career')}>
+            <ArrowLeft className="h-4 w-4" /> Back to Career Portal
+          </Button>
+          <h1 className="text-2xl font-bold tracking-tight">Institutional Job Board</h1>
           <p className="text-muted-foreground">{isRecruiter ? 'Manage your postings and scout talent' : 'Discover and apply for verified opportunities'}</p>
         </div>
         {(isRecruiter || isPlacementOfficer || isAdmin) && (

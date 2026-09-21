@@ -123,9 +123,9 @@ export function MainLayout() {
           isMobile && user.role === 'student' && 'pb-16'
         )}
       >
-        <div className={location.pathname.endsWith("/chat") ? "p-0" : "p-4 lg:p-6"}>
+        <div className="w-full min-w-0 p-4 lg:p-6">
           <Outlet />
-          {!location.pathname.endsWith("/chat") && <FloatingAIChat />}
+          <FloatingAIChat />
         </div>
       </main>
       {isMobile && user.role === 'student' && <BottomNav />}

@@ -13,6 +13,7 @@ import {
   Upload,
   Download,
   Key,
+  Eye,
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -143,7 +144,17 @@ export default function Users() {
       }
 
       const usersSnapshot = await getDocs(usersQuery);
-      usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+      usersData = await Promise.all(usersSnapshot.docs.map(async (userDoc) => {
+        const account = { id: userDoc.id, ...(userDoc.data() as any) };
+        const profileCollection = account.role === 'student' ? 'studentProfiles' : account.role === 'faculty' ? 'facultyProfiles' : null;
+        if (!profileCollection) return account;
+        try {
+          const profileDoc = await getDoc(doc(db, profileCollection, userDoc.id));
+          return profileDoc.exists() ? { ...account, ...profileDoc.data() } : account;
+        } catch {
+          return account;
+        }
+      }));
 
       // Apply department filtering client-side for faculty (security rule handles server side)
       usersData = filterByDepartment(usersData);
@@ -612,6 +623,8 @@ export default function Users() {
               <tr>
                 <th className="text-left p-4 text-sm font-medium text-muted-foreground">Name</th>
                 <th className="text-left p-4 text-sm font-medium text-muted-foreground">Email</th>
+                <th className="text-left p-4 text-sm font-medium text-muted-foreground">Student / employee ID</th>
+                <th className="text-left p-4 text-sm font-medium text-muted-foreground">Department</th>
                 <th className="text-left p-4 text-sm font-medium text-muted-foreground">Role</th>
                 <th className="text-center p-4 text-sm font-medium text-muted-foreground">Status</th>
                 <th className="text-right p-4 text-sm font-medium text-muted-foreground">Actions</th>
@@ -620,7 +633,7 @@ export default function Users() {
             <tbody className="divide-y divide-border">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                  <td colSpan={7} className="p-8 text-center text-muted-foreground">
                     No users found
                   </td>
                 </tr>
@@ -633,6 +646,8 @@ export default function Users() {
                   >
                     <td className="p-4 font-medium text-foreground">{user.fullName}</td>
                     <td className="p-4 text-muted-foreground">{user.email}</td>
+                    <td className="p-4 font-mono text-xs text-muted-foreground">{user.role === 'student' ? (user.enrollmentNumber || user.registrationNumber || 'Not provided') : (user.employeeId || 'Not provided')}</td>
+                    <td className="p-4 text-sm text-muted-foreground">{user.department || 'Not provided'}</td>
                     <td className="p-4">
                       <Badge variant={getRoleBadgeColor(user.role)}>
                         {user.role?.replace('_', ' ')}
@@ -644,8 +659,12 @@ export default function Users() {
                       </Badge>
                     </td>
                     <td className="p-4" onClick={(e) => e.stopPropagation()}>
-                      {isAdmin && (
-                        <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button variant="outline" size="sm" onClick={() => navigate(`/users/${user.id}`)} title="View profile">
+                          <Eye className="mr-1.5 h-4 w-4" /> View
+                        </Button>
+                        {isAdmin && (
+                          <div className="flex items-center gap-1">
                           <Button variant="ghost" size="sm" onClick={() => handleResetPassword(user.email)} title="Reset Password">
                             <Key className="w-4 h-4" />
                           </Button>
@@ -655,8 +674,9 @@ export default function Users() {
                           <Button variant="ghost" size="sm" onClick={() => handleDelete(user.id)}>
                             <Trash2 className="w-4 h-4 text-destructive" />
                           </Button>
-                        </div>
-                      )}
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))

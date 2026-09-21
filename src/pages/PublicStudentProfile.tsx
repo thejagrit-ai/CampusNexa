@@ -8,7 +8,6 @@ import {
   Github,
   Linkedin,
   Share2,
-  MessageSquare,
   Copy,
   Check,
   Download,
@@ -127,15 +126,6 @@ export default function PublicStudentProfile() {
     setTimeout(() => setIsCopied(false), 2000);
   };
 
-  const handleMessage = () => {
-    if (!auth.currentUser) {
-      toast.error('Please login to message this student');
-      navigate('/auth');
-      return;
-    }
-    navigate(`/chat?userId=${id}`);
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -211,10 +201,6 @@ export default function PublicStudentProfile() {
           </div>
 
           <div className="flex items-center gap-2 w-full md:w-auto">
-            <Button onClick={handleMessage} className="flex-1 md:flex-none gap-2" size="sm">
-              <MessageSquare className="w-4 h-4" />
-              Message
-            </Button>
             <Button variant="outline" onClick={copyLink} className="flex-1 md:flex-none gap-2" size="sm">
               {isCopied ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
               {isCopied ? 'Copied' : 'Share'}

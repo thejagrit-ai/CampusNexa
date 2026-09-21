@@ -37,7 +37,7 @@ const articles = [
 Key modules include:
 • Academic Management (Courses, Grades, Attendance)
 • Financial Services (Fee payment, Transactions)
-• Social & Campus Life (Night Canteen, Hostel issues)
+• Social & Campus Life (Canteen, Hostel issues)
 • Career Services (Placement board, AI Resume tools)
 
 Our goal is to reduce administrative friction and let you focus on what matters most: your growth.`
@@ -66,7 +66,7 @@ Pro Tip: Use the 'Stat Cards' to quickly jump to detailed reports for Finance or
 • **User Management**: Add, edit, and audit user profiles (Students, Faculty, Staff).
 • **Organization Config**: Set up academic years, semester dates, and department hierarchies.
 • **System Logs**: Monitor platform activity and security events.
-• **Service Management**: Oversee the Night Canteen inventory and Hostel maintenance queue.
+• **Service Management**: Oversee the Canteen inventory and Hostel maintenance queue.
 
 Admins can access these through the specific 'Admin' labeled links in the sidebar.`
   },
@@ -84,10 +84,10 @@ Admins can access these through the specific 'Admin' labeled links in the sideba
   },
   { 
     icon: UtensilsCrossed, 
-    title: 'Night Canteen Introduction', 
+    title: 'Canteen Introduction',
     description: 'How to browse menu and order late-night meals', 
     readTime: '2 min',
-    content: `Hungry late at night? The Night Canteen module lets you:
+    content: `The Canteen module lets you:
 
 1. **Browse Menu**: Sort by categories like 'Snacks', 'Drinks', or 'Meals'.
 2. **Live Inventory**: See what's actually in stock before you order.

@@ -50,6 +50,7 @@ import { toast } from 'sonner';
 import { usePermissions } from '@/hooks/usePermissions';
 import BulkUpload from '@/components/BulkUpload';
 import * as XLSX from 'xlsx';
+import { downloadFeeReceipt } from '@/lib/feeReceipt';
 
 export default function Finance() {
   const navigate = useNavigate();
@@ -268,6 +269,20 @@ export default function Finance() {
   const totalPending = feeRecords.filter(f => f.status === 'pending').reduce((sum, f) => sum + (f.amount || 0), 0);
   const totalPaid = feeRecords.filter(f => f.status === 'paid').reduce((sum, f) => sum + (f.amount || 0), 0);
 
+  const handleDownloadReceipt = async (fee: any) => {
+    if (fee.status !== 'paid') { toast.error('A receipt is available after payment is marked paid.'); return; }
+    try {
+      const [studentSnap, settingsSnap] = await Promise.all([
+        getDoc(doc(db, 'users', fee.studentId)),
+        getDoc(doc(db, 'paymentSettings', 'admin_config')),
+      ]);
+      downloadFeeReceipt({ payment: fee, student: studentSnap.exists() ? studentSnap.data() : { id: fee.studentId }, institution: settingsSnap.exists() ? settingsSnap.data() : {} });
+    } catch (error) {
+      console.error('Receipt generation failed:', error);
+      toast.error('Could not generate receipt');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -410,6 +425,7 @@ export default function Finance() {
                     </td>
                     <td className="p-4">
                       <div className="flex items-center justify-end gap-2">
+                        {fee.status === 'paid' && <Button variant="ghost" size="sm" onClick={() => handleDownloadReceipt(fee)} title="Download receipt"><Receipt className="w-4 h-4" /></Button>}
                         <Button variant="ghost" size="sm" onClick={() => navigate(`/finance/${fee.id}`)}>
                           <ExternalLink className="w-4 h-4" />
                         </Button>

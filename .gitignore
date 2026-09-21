@@ -24,3 +24,7 @@ dist-ssr
 *.sw?
 .env
 .vercel
+
+# Local cloud credentials; never commit private keys.
+secrets/*
+!secrets/.gitkeep

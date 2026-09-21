@@ -47,7 +47,7 @@ export const searchableRoutes = [
   
   // Campus
   { title: "Campus Map", path: "/campus-map", icon: MapPin, keywords: ["location", "directions", "buildings"] },
-  { title: "Night Canteen", path: "/canteen", icon: Coffee, keywords: ["food", "order", "snacks"] },
+  { title: "Canteen", path: "/canteen", icon: Coffee, keywords: ["food", "order", "snacks"] },
   { title: "Hostel Issues", path: "/hostel-issues", icon: Home, keywords: ["complaints", "support", "maintenance"] },
   
   // Help

@@ -17,6 +17,12 @@ import {
   Palette,
   Check,
   Copy,
+  KeyRound,
+  Server,
+  Eye,
+  EyeOff,
+  AlertTriangle,
+  Bot,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -80,6 +86,21 @@ export default function Settings() {
     showPhone: false,
     allowRecruiterContact: true,
   });
+
+  const [integrationSettings, setIntegrationSettings] = useState({
+    smtpHost: '', smtpPort: '587', smtpUsername: '', smtpFromEmail: '',
+    aiProvider: 'openai', aiModel: 'gpt-4o-mini',
+  });
+  const [showSmtpSecret, setShowSmtpSecret] = useState(false);
+  const [showAiSecret, setShowAiSecret] = useState(false);
+  const [smtpSecret, setSmtpSecret] = useState('');
+  const [aiSecret, setAiSecret] = useState('');
+  const [editingIntegration, setEditingIntegration] = useState<'smtp' | 'ai' | null>(null);
+  const isAdmin = user?.role === 'college_admin' || user?.role === 'super_admin';
+
+  const testIntegration = (type: 'smtp' | 'ai') => {
+    toast.info(`${type === 'smtp' ? 'SMTP' : 'AI'} test requires a secure server endpoint. No credentials were sent from this browser.`);
+  };
 
   // Accent color themes
   const accentColors = [
@@ -157,54 +178,64 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6 pb-8">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Settings</h1>
-        <p className="text-muted-foreground mt-1">Manage your account preferences</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Settings</h1>
+            {isAdmin && <Badge variant="secondary" className="gap-1.5 font-medium"><Shield className="h-3.5 w-3.5" /> Administrator</Badge>}
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">Manage your account, workspace preferences, and institution controls.</p>
+        </div>
+        {isAdmin && <p className="text-xs text-muted-foreground">Changes apply to your current institution</p>}
       </div>
 
       <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="flex-wrap h-auto gap-2">
-          <TabsTrigger value="profile" className="gap-2">
+        <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-xl border border-border/70 bg-muted/40 p-1 scrollbar-none">
+          <TabsTrigger value="profile" className="shrink-0 gap-2 whitespace-nowrap">
             <User className="w-4 h-4" />
             Profile
           </TabsTrigger>
-          <TabsTrigger value="appearance" className="gap-2">
+          <TabsTrigger value="appearance" className="shrink-0 gap-2 whitespace-nowrap">
             <Palette className="w-4 h-4" />
             Appearance
           </TabsTrigger>
-          <TabsTrigger value="notifications" className="gap-2">
+          <TabsTrigger value="notifications" className="shrink-0 gap-2 whitespace-nowrap">
             <Bell className="w-4 h-4" />
             Notifications
           </TabsTrigger>
-          <TabsTrigger value="privacy" className="gap-2">
+          <TabsTrigger value="privacy" className="shrink-0 gap-2 whitespace-nowrap">
             <Lock className="w-4 h-4" />
             Privacy
           </TabsTrigger>
-          <TabsTrigger value="connected" className="gap-2">
+          <TabsTrigger value="connected" className="shrink-0 gap-2 whitespace-nowrap">
             <Globe className="w-4 h-4" />
             Connected
           </TabsTrigger>
-          <TabsTrigger value="security" className="gap-2">
+          {user?.role !== 'placement_officer' && <TabsTrigger value="security" className="shrink-0 gap-2 whitespace-nowrap">
             <Shield className="w-4 h-4" />
             Security
-          </TabsTrigger>
+          </TabsTrigger>}
           
           {/* Admin Settings Tabs */}
-          {user?.role === 'college_admin' && (
+          {isAdmin && (
             <>
-              <TabsTrigger value="college" className="gap-2">
+              <TabsTrigger value="college" className="shrink-0 gap-2 whitespace-nowrap">
                 <Building2 className="w-4 h-4" />
                 College
               </TabsTrigger>
-              <TabsTrigger value="payment" className="gap-2">
+              <TabsTrigger value="payment" className="shrink-0 gap-2 whitespace-nowrap">
                 <CreditCard className="w-4 h-4" />
                 Payment
               </TabsTrigger>
-              <TabsTrigger value="placement" className="gap-2">
+              <TabsTrigger value="placement" className="shrink-0 gap-2 whitespace-nowrap">
                 <Cog className="w-4 h-4" />
                 Placement
+              </TabsTrigger>
+              <TabsTrigger value="integrations" className="shrink-0 gap-2 whitespace-nowrap">
+                <KeyRound className="w-4 h-4" />
+                Integrations
               </TabsTrigger>
             </>
           )}
@@ -638,7 +669,7 @@ export default function Settings() {
         </TabsContent>
 
         {/* Security Tab */}
-        <TabsContent value="security">
+        {user?.role !== 'placement_officer' && <TabsContent value="security">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -690,9 +721,9 @@ export default function Settings() {
               </Button>
             </div>
           </motion.div>
-        </TabsContent>
+        </TabsContent>}
         {/* Admin Tabs Content */}
-        {user?.role === 'college_admin' && (
+        {isAdmin && (
           <>
             <TabsContent value="college">
               <CollegeSettings embedded={true} />
@@ -702,6 +733,37 @@ export default function Settings() {
             </TabsContent>
             <TabsContent value="placement">
               <PlacementSettingsPage embedded={true} />
+            </TabsContent>
+            <TabsContent value="integrations">
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+                <div className="rounded-xl border border-border bg-muted/30 p-4 text-foreground">
+                  <div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" /><div><p className="font-semibold">Secrets are not stored in the browser</p><p className="mt-1 text-sm text-muted-foreground">SMTP passwords and AI API keys must be stored in a server-side secret manager before these integrations can be activated.</p></div></div>
+                </div>
+
+                <div className="card-elevated overflow-hidden">
+                   <div className="flex items-start justify-between gap-4 border-b border-border p-6"><div className="flex items-start gap-3"><div className="rounded-lg bg-muted p-2.5 text-foreground"><Server className="h-5 w-5" /></div><div><h3 className="font-semibold text-foreground">SMTP email delivery</h3><p className="mt-1 text-sm text-muted-foreground">{integrationSettings.smtpHost ? `${integrationSettings.smtpHost}:${integrationSettings.smtpPort}` : 'Not configured'} · {integrationSettings.smtpFromEmail || 'No sender configured'}</p><Badge variant="outline" className="mt-2">Not connected</Badge></div></div><div className="flex shrink-0 gap-2"><Button variant="outline" size="sm" onClick={() => testIntegration('smtp')}>Test</Button><Button size="sm" onClick={() => setEditingIntegration(editingIntegration === 'smtp' ? null : 'smtp')}>{editingIntegration === 'smtp' ? 'Close' : 'Edit'}</Button></div></div>
+                   <div className={cn('grid gap-4 p-6 sm:grid-cols-2', editingIntegration === 'smtp' ? '' : 'hidden')}>
+                    <div><label className="text-sm font-medium text-foreground">SMTP host</label><Input value={integrationSettings.smtpHost} onChange={(e) => setIntegrationSettings({ ...integrationSettings, smtpHost: e.target.value })} placeholder="smtp.gmail.com" className="mt-1" /></div>
+                    <div><label className="text-sm font-medium text-foreground">Port</label><Input value={integrationSettings.smtpPort} onChange={(e) => setIntegrationSettings({ ...integrationSettings, smtpPort: e.target.value })} inputMode="numeric" placeholder="587" className="mt-1" /></div>
+                    <div><label className="text-sm font-medium text-foreground">SMTP username</label><Input value={integrationSettings.smtpUsername} onChange={(e) => setIntegrationSettings({ ...integrationSettings, smtpUsername: e.target.value })} placeholder="notifications@university.edu" className="mt-1" /></div>
+                    <div><label className="text-sm font-medium text-foreground">From email</label><Input type="email" value={integrationSettings.smtpFromEmail} onChange={(e) => setIntegrationSettings({ ...integrationSettings, smtpFromEmail: e.target.value })} placeholder="no-reply@university.edu" className="mt-1" /></div>
+                     <div className="sm:col-span-2"><label className="text-sm font-medium text-foreground">SMTP password / app password</label><div className="relative mt-1"><Input type={showSmtpSecret ? 'text' : 'password'} value={smtpSecret} onChange={(e) => setSmtpSecret(e.target.value)} placeholder="Enter only when a secure backend vault is connected" className="pr-10" autoComplete="new-password" /><button type="button" onClick={() => setShowSmtpSecret(!showSmtpSecret)} className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground" aria-label={showSmtpSecret ? 'Hide SMTP password' : 'Show SMTP password'}>{showSmtpSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div><p className="mt-1 text-xs text-muted-foreground">Never saved to localStorage, Firestore, or the URL.</p></div>
+                     <div className="flex justify-end gap-2 sm:col-span-2"><Button variant="outline" onClick={() => testIntegration('smtp')}>Test connection</Button><Button onClick={() => toast.info('SMTP details are ready, but activation requires a secure backend endpoint.')}>Save configuration</Button></div>
+                  </div>
+                </div>
+
+                <div className="card-elevated overflow-hidden">
+                   <div className="flex items-start justify-between gap-4 border-b border-border p-6"><div className="flex items-start gap-3"><div className="rounded-lg bg-muted p-2.5 text-foreground"><Bot className="h-5 w-5" /></div><div><h3 className="font-semibold text-foreground">AI assistant provider</h3><p className="mt-1 text-sm text-muted-foreground">{integrationSettings.aiProvider} · {integrationSettings.aiModel}</p><Badge variant="outline" className="mt-2">Not connected</Badge></div></div><div className="flex shrink-0 gap-2"><Button variant="outline" size="sm" onClick={() => testIntegration('ai')}>Test</Button><Button size="sm" onClick={() => setEditingIntegration(editingIntegration === 'ai' ? null : 'ai')}>{editingIntegration === 'ai' ? 'Close' : 'Edit'}</Button></div></div>
+                   <div className={cn('grid gap-4 p-6 sm:grid-cols-2', editingIntegration === 'ai' ? '' : 'hidden')}>
+                    <div><label className="text-sm font-medium text-foreground">Provider</label><Select value={integrationSettings.aiProvider} onValueChange={(value) => setIntegrationSettings({ ...integrationSettings, aiProvider: value })}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="openai">OpenAI</SelectItem><SelectItem value="anthropic">Anthropic</SelectItem><SelectItem value="google">Google Gemini</SelectItem><SelectItem value="custom">Custom OpenAI-compatible</SelectItem></SelectContent></Select></div>
+                    <div><label className="text-sm font-medium text-foreground">Model</label><Input value={integrationSettings.aiModel} onChange={(e) => setIntegrationSettings({ ...integrationSettings, aiModel: e.target.value })} placeholder="gpt-4o-mini" className="mt-1" /></div>
+                     <div className="sm:col-span-2"><label className="text-sm font-medium text-foreground">API key</label><div className="relative mt-1"><Input type={showAiSecret ? 'text' : 'password'} value={aiSecret} onChange={(e) => setAiSecret(e.target.value)} placeholder="Enter only when a secure backend vault is connected" className="pr-10" autoComplete="new-password" /><button type="button" onClick={() => setShowAiSecret(!showAiSecret)} className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground" aria-label={showAiSecret ? 'Hide API key' : 'Show API key'}>{showAiSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div><p className="mt-1 text-xs text-muted-foreground">Keys are write-only in this interface and are not persisted client-side.</p></div>
+                     <div className="flex justify-end gap-2 sm:col-span-2"><Button variant="outline" onClick={() => testIntegration('ai')}>Test response</Button><Button onClick={() => toast.info('AI settings are ready, but activation requires a secure backend endpoint.')}>Save configuration</Button></div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3 rounded-xl border border-border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-start gap-3"><Shield className="mt-0.5 h-5 w-5 text-primary" /><div><p className="text-sm font-medium text-foreground">Secure activation required</p><p className="text-xs text-muted-foreground">Add a server-side secret manager and API route before enabling these integrations.</p></div></div><Button variant="outline" onClick={() => toast.info('A secure backend vault is required before credentials can be activated.')}>Review security requirements</Button></div>
+              </motion.div>
             </TabsContent>
           </>
         )}

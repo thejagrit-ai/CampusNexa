@@ -2,7 +2,6 @@
 import { NavLink, useLocation, useParams } from 'react-router-dom';
 import { 
   LayoutDashboard, 
-  MessageCircle, 
   UtensilsCrossed, 
   Briefcase, 
   User 
@@ -19,11 +18,6 @@ export function BottomNav() {
       label: 'Home',
       icon: LayoutDashboard,
       path: '/dashboard'
-    },
-    {
-      label: 'Chat',
-      icon: MessageCircle,
-      path: '/chat'
     },
     {
       label: 'Order',

@@ -14,6 +14,7 @@ import {
   Filter,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { BackToCareer } from '@/components/placement/BackToCareer';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -223,6 +224,7 @@ export default function PlacementReports() {
       {/* Header */}
       <motion.div variants={item} className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
+          <BackToCareer />
           <h1 className="text-3xl font-bold text-foreground">Placement Reports</h1>
           <p className="text-muted-foreground mt-1">
             Comprehensive placement statistics and analytics

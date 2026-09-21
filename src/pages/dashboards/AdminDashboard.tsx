@@ -16,6 +16,13 @@ import {
   BarChart3,
   ClipboardCheck,
   GraduationCap,
+  ArrowUpRight,
+  CalendarDays,
+  UserRoundPlus,
+  WalletCards,
+  Activity,
+  ShieldCheck,
+  Clock3,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -410,27 +417,21 @@ export function AdminDashboard({ viewingOrgId }: { viewingOrgId?: string }) {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Admin Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Complete control over your ERP system</p>
+    <div className="space-y-6 pb-8">
+      <section className="relative overflow-hidden rounded-2xl bg-slate-950 px-5 py-6 text-white shadow-xl sm:px-7 lg:px-8">
+        <div className="absolute -right-16 -top-24 h-64 w-64 rounded-full bg-blue-500/20 blur-3xl" />
+        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-blue-200"><span className="h-2 w-2 rounded-full bg-emerald-400" /> Live campus operations</div>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Good morning, Admin</h1>
+            <p className="mt-2 max-w-xl text-sm text-slate-300 sm:text-base">A single view of your institution&apos;s academic, people and finance operations.</p>
+          </div>
+          <Button onClick={() => navigate('/admin/college-settings')} className="w-full gap-2 bg-white text-slate-950 hover:bg-blue-50 sm:w-auto"><Settings className="h-4 w-4" /> College settings</Button>
         </div>
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => navigate('/admin/college-settings')}
-            className="gap-2"
-          >
-            <Settings className="w-4 h-4" />
-            College Settings
-          </Button>
-        </div>
-      </div>
+      </section>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Legacy KPI actions are kept for tab navigation but replaced by the responsive overview below. */}
+      <div className="hidden grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <motion.div 
           initial={{ opacity: 0, y: 20 }} 
           animate={{ opacity: 1, y: 0 }} 
@@ -514,6 +515,42 @@ export function AdminDashboard({ viewingOrgId }: { viewingOrgId?: string }) {
           </div>
         </motion.div>
       </div>
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          { label: 'Enrolled students', value: stats.totalStudents, icon: Users, tone: 'text-blue-600 bg-blue-50', tab: 'users' },
+          { label: 'Teaching faculty', value: stats.totalFaculty, icon: GraduationCap, tone: 'text-violet-600 bg-violet-50', tab: 'users' },
+          { label: 'Active courses', value: stats.totalCourses, icon: BookOpen, tone: 'text-emerald-600 bg-emerald-50', tab: 'courses' },
+          { label: 'Collected revenue', value: `₹${stats.totalRevenue.toLocaleString()}`, icon: WalletCards, tone: 'text-amber-600 bg-amber-50', tab: 'fees' },
+        ].map(({ label, value, icon: Icon, tone, tab }, index) => (
+          <motion.button key={label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} onClick={() => { const trigger = document.querySelector(`[value="${tab}"]`); if (trigger instanceof HTMLElement) trigger.click(); }} className="group rounded-xl border border-border/70 bg-card p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md">
+            <div className="flex items-start justify-between gap-3"><span className={`rounded-lg p-2.5 ${tone}`}><Icon className="h-5 w-5" /></span><ArrowUpRight className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" /></div>
+            <p className="mt-4 text-sm text-muted-foreground">{label}</p><p className="mt-1 text-2xl font-semibold tracking-tight text-foreground">{value}</p>
+          </motion.button>
+        ))}
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
+        <div className="rounded-xl border border-border/70 bg-card p-5 shadow-sm sm:p-6">
+          <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wider text-primary">Workspace</p><h2 className="mt-1 text-lg font-semibold">Manage campus operations</h2><p className="mt-1 text-sm text-muted-foreground">Jump into the areas that need your attention.</p></div><Activity className="h-5 w-5 text-muted-foreground" /></div>
+          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+            {[
+              { title: 'Add a student or faculty', detail: 'Create a profile and assign access', icon: UserRoundPlus, tab: 'users' },
+              { title: 'Publish a course', detail: 'Set curriculum, faculty and capacity', icon: BookOpen, tab: 'courses' },
+              { title: 'Record a payment', detail: 'Track tuition and campus fees', icon: WalletCards, tab: 'fees' },
+              { title: 'Review analytics', detail: 'Understand trends across campus', icon: BarChart3, tab: 'analytics' },
+            ].map(({ title, detail, icon: Icon, tab }) => <button key={title} onClick={() => { const trigger = document.querySelector(`[value="${tab}"]`); if (trigger instanceof HTMLElement) trigger.click(); }} className="flex items-center gap-3 rounded-lg border border-border/60 p-3 text-left transition-colors hover:border-primary/40 hover:bg-primary/[0.03]"><span className="rounded-md bg-muted p-2"><Icon className="h-4 w-4 text-foreground" /></span><span className="min-w-0"><span className="block truncate text-sm font-medium">{title}</span><span className="block truncate text-xs text-muted-foreground">{detail}</span></span><ArrowUpRight className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" /></button>)}
+          </div>
+        </div>
+        <div className="rounded-xl border border-border/70 bg-card p-5 shadow-sm sm:p-6">
+          <div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-wider text-primary">System health</p><h2 className="mt-1 text-lg font-semibold">Today&apos;s pulse</h2></div><ShieldCheck className="h-5 w-5 text-emerald-500" /></div>
+          <div className="mt-5 space-y-4">
+            <div className="flex items-center gap-3"><div className="rounded-full bg-emerald-50 p-2 text-emerald-600"><ShieldCheck className="h-4 w-4" /></div><div className="flex-1"><p className="text-sm font-medium">ERP services online</p><p className="text-xs text-muted-foreground">All systems operational</p></div><span className="text-xs font-medium text-emerald-600">Healthy</span></div>
+            <div className="flex items-center gap-3"><div className="rounded-full bg-blue-50 p-2 text-blue-600"><CalendarDays className="h-4 w-4" /></div><div className="flex-1"><p className="text-sm font-medium">Academic term</p><p className="text-xs text-muted-foreground">2025–26 session</p></div><span className="text-xs text-muted-foreground">Active</span></div>
+            <div className="flex items-center gap-3"><div className="rounded-full bg-amber-50 p-2 text-amber-600"><Clock3 className="h-4 w-4" /></div><div className="flex-1"><p className="text-sm font-medium">Last synchronized</p><p className="text-xs text-muted-foreground">Live data from campus</p></div><span className="text-xs text-muted-foreground">Now</span></div>
+          </div>
+        </div>
+      </section>
 
       {/* Tabs */}
       <Tabs defaultValue="courses" className="space-y-4">

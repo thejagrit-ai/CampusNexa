@@ -49,6 +49,9 @@ export function PlacementOfficerDashboard() {
     placed: 0,
     recruiters: 0,
     jobs: 0,
+    applications: 0,
+    eligibleStudents: 0,
+    upcomingDrives: 0,
     avgPackage: "₹12.4L",
   });
   const [upcomingDrives, setUpcomingDrives] = useState<any[]>([]);
@@ -68,6 +71,12 @@ export function PlacementOfficerDashboard() {
     const unsubApps = onSnapshot(query(collection(db, 'applications'), where('status', '==', 'hired')), (snap) => {
       setStats(prev => ({ ...prev, placed: snap.size }));
     });
+    const unsubAllApplications = onSnapshot(collection(db, 'applications'), (snap) => {
+      setStats(prev => ({ ...prev, applications: snap.size }));
+    });
+    const unsubStudents = onSnapshot(query(collection(db, 'users'), where('role', '==', 'student')), (snap) => {
+      setStats(prev => ({ ...prev, eligibleStudents: snap.size }));
+    });
 
     // Recent Placements
     const unsubRecent = onSnapshot(
@@ -82,6 +91,7 @@ export function PlacementOfficerDashboard() {
       query(collection(db, 'placement_drives'), where('status', '==', 'upcoming'), orderBy('date', 'asc'), limit(4)),
       (snap) => {
         setUpcomingDrives(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setStats(prev => ({ ...prev, upcomingDrives: snap.size }));
         setLoading(false);
       }
     );
@@ -90,6 +100,8 @@ export function PlacementOfficerDashboard() {
       unsubJobs();
       unsubRecruiters();
       unsubApps();
+      unsubAllApplications();
+      unsubStudents();
       unsubRecent();
       unsubDrives();
     };
@@ -108,13 +120,14 @@ export function PlacementOfficerDashboard() {
       variants={container}
       initial="hidden"
       animate="show"
-      className="space-y-6"
+      className="w-full min-w-0 space-y-5"
     >
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col gap-4 border-b border-border/70 pb-5 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Placement Dashboard</h1>
-          <p className="text-muted-foreground">Manage recruiters, drives, and student placements</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Placement operations</p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight text-foreground">Placement Dashboard</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Manage recruiters, drives, and student placements.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline">
@@ -131,7 +144,7 @@ export function PlacementOfficerDashboard() {
       </div>
 
       {/* Quick Stats */}
-      <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <motion.div variants={item} className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           icon={UserCheck}
           label="Students Placed"
@@ -162,16 +175,19 @@ export function PlacementOfficerDashboard() {
           trendUp
           iconColor="text-success"
         />
+        <StatCard icon={Users} label="Eligible students" value={stats.eligibleStudents.toString()} subtext="Student accounts" iconColor="text-primary" />
+        <StatCard icon={FileText} label="Applications" value={stats.applications.toString()} subtext="All tracked applications" iconColor="text-accent" />
+        <StatCard icon={Calendar} label="Upcoming drives" value={stats.upcomingDrives.toString()} subtext="Scheduled placement drives" iconColor="text-success" />
       </motion.div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,.85fr)]">
         {/* Left Column */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="space-y-5">
           {/* Upcoming Drives */}
-          <motion.div variants={item} className="card-elevated p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-foreground">Upcoming Drives</h2>
+          <motion.div variants={item} className="card-elevated p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Schedule</p><h2 className="mt-1 text-lg font-semibold text-foreground">Upcoming drives</h2></div>
               <Button variant="ghost" size="sm" asChild>
                 <Link to="/placements/drives">
                   View Calendar
@@ -199,9 +215,9 @@ export function PlacementOfficerDashboard() {
           </motion.div>
 
           {/* Recent Placements */}
-          <motion.div variants={item} className="card-elevated p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-foreground">Recent Placements</h2>
+          <motion.div variants={item} className="card-elevated p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Outcomes</p><h2 className="mt-1 text-lg font-semibold text-foreground">Recent placements</h2></div>
               <Button variant="ghost" size="sm" asChild>
                 <Link to="/placements/reports">
                   View All
@@ -227,9 +243,9 @@ export function PlacementOfficerDashboard() {
           </motion.div>
 
           {/* Company Pipeline */}
-          <motion.div variants={item} className="card-elevated p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-foreground">Recruiter Pipeline</h2>
+          <motion.div variants={item} className="card-elevated p-5">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Partnerships</p><h2 className="mt-1 text-lg font-semibold text-foreground">Recruiter pipeline</h2></div>
               <Button variant="ghost" size="sm" asChild>
                  <Link to="/placements/recruiters">
                   Manage
@@ -237,7 +253,7 @@ export function PlacementOfficerDashboard() {
                 </Link>
               </Button>
             </div>
-            <div className="h-[200px] w-full">
+            <div className="h-[190px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={[
                   { name: 'Contacted', value: 12, color: '#3b82f6' },
@@ -272,12 +288,12 @@ export function PlacementOfficerDashboard() {
         {/* Right Column */}
         <div className="space-y-6">
           {/* Placement Progress */}
-          <motion.div variants={item} className="card-elevated p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Batch Progress</h2>
+          <motion.div variants={item} className="card-elevated p-5">
+            <div className="mb-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cohort overview</p><h2 className="mt-1 text-lg font-semibold text-foreground">Batch progress</h2></div>
             <div className="space-y-4">
               <div className="text-center">
-              <div className="h-[200px] w-full flex justify-center">
-                 <ResponsiveContainer width={200} height={200}>
+              <div className="flex h-[170px] w-full justify-center">
+                 <ResponsiveContainer width={170} height={170}>
                    <PieChart>
                      <Pie
                        data={[
@@ -286,8 +302,8 @@ export function PlacementOfficerDashboard() {
                        ]}
                        cx="50%"
                        cy="50%"
-                       innerRadius={60}
-                       outerRadius={80}
+                         innerRadius={50}
+                         outerRadius={68}
                        startAngle={90}
                        endAngle={-270}
                        dataKey="value"
@@ -319,8 +335,8 @@ export function PlacementOfficerDashboard() {
           </motion.div>
 
           {/* Top Recruiters */}
-          <motion.div variants={item} className="card-elevated p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Top Recruiters</h2>
+          <motion.div variants={item} className="card-elevated p-5">
+            <div className="mb-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Employer activity</p><h2 className="mt-1 text-lg font-semibold text-foreground">Top recruiters</h2></div>
             <div className="space-y-3">
               <RecruiterRow company="Google" hired={24} avgPackage="₹32L" />
               <RecruiterRow company="Microsoft" hired={35} avgPackage="₹26L" />
@@ -330,8 +346,8 @@ export function PlacementOfficerDashboard() {
           </motion.div>
 
           {/* Package Distribution */}
-          <motion.div variants={item} className="card-elevated p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Package Distribution</h2>
+          <motion.div variants={item} className="card-elevated p-5">
+            <div className="mb-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Compensation</p><h2 className="mt-1 text-lg font-semibold text-foreground">Package distribution</h2></div>
             <div className="space-y-3">
               <PackageBar label="> ₹30L" count={45} total={856} color="bg-accent" />
               <PackageBar label="₹20-30L" count={180} total={856} color="bg-success" />
@@ -341,8 +357,8 @@ export function PlacementOfficerDashboard() {
           </motion.div>
 
           {/* Quick Actions */}
-          <motion.div variants={item} className="card-elevated p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Quick Actions</h2>
+          <motion.div variants={item} className="card-elevated p-5">
+            <div className="mb-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Workspace</p><h2 className="mt-1 text-lg font-semibold text-foreground">Quick actions</h2></div>
             <div className="space-y-2">
               <Button variant="outline" size="sm" className="w-full justify-start" asChild>
                 <Link to="/placements/recruiters">
@@ -380,9 +396,9 @@ interface StatCardProps {
 
 function StatCard({ icon: Icon, label, value, subtext, trend, trendUp, iconColor = 'text-primary' }: StatCardProps) {
   return (
-    <div className="card-elevated p-5">
-      <div className="flex items-start justify-between">
-        <div className={`w-10 h-10 rounded-lg bg-secondary flex items-center justify-center ${iconColor}`}>
+    <div className="card-elevated flex min-h-[142px] h-full flex-col justify-between p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-secondary ${iconColor}`}>
           <Icon className="w-5 h-5" />
         </div>
         {trend && (
@@ -392,9 +408,9 @@ function StatCard({ icon: Icon, label, value, subtext, trend, trendUp, iconColor
         )}
       </div>
       <div className="mt-4">
-        <p className="text-2xl font-bold text-foreground">{value}</p>
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="text-xs text-muted-foreground mt-1">{subtext}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="mt-1 text-2xl font-bold tracking-tight text-foreground">{value}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{subtext}</p>
       </div>
     </div>
   );
@@ -417,18 +433,18 @@ function DriveCard({ company, role, date, slots, registered, status }: DriveCard
   };
 
   return (
-    <div className="flex items-center justify-between p-4 rounded-lg border border-border hover:border-accent/30 transition-colors">
-      <div className="flex items-center gap-3">
+    <div className="flex flex-col gap-3 rounded-lg border border-border p-3 transition-colors hover:border-accent/30 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-center gap-3">
         <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
           <Building2 className="w-5 h-5 text-primary" />
         </div>
-        <div>
-          <p className="font-semibold text-foreground">{company}</p>
-          <p className="text-sm text-muted-foreground">{role}</p>
+        <div className="min-w-0">
+          <p className="truncate font-semibold text-foreground">{company}</p>
+          <p className="truncate text-sm text-muted-foreground">{role}</p>
         </div>
       </div>
-      <div className="flex items-center gap-4">
-        <div className="text-right">
+      <div className="flex items-center justify-between gap-3 sm:justify-end">
+        <div className="text-left sm:text-right">
           <p className="text-sm font-medium text-foreground">{date}</p>
           <p className="text-xs text-muted-foreground">{registered} registered · {slots} slots</p>
         </div>

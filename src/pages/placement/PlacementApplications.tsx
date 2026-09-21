@@ -21,7 +21,6 @@ import {
   Ban,
   ExternalLink,
   Sparkles,
-  MessageCircle,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
@@ -185,49 +184,6 @@ export default function PlacementApplications() {
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Applications');
     XLSX.writeFile(workbook, `Placement_Applications_${new Date().toISOString().split('T')[0]}.xlsx`);
     toast.success('Applications exported successfully');
-  };
-
-  const handleStartChat = async (studentId: string, studentName: string) => {
-    if (!user) return;
-    
-    try {
-      // 1. Check if room exists
-      const q = query(
-        collection(db, 'rooms'), 
-        where('participants', 'array-contains', user.uid),
-        orderBy('lastMessageAt', 'desc')
-      );
-      const snapshot = await getDocs(q);
-      const existingRoom = snapshot.docs.find(doc => {
-        const data = doc.data();
-        return data.type === 'dm' && data.participants.includes(studentId);
-      });
-
-      let roomId;
-
-      if (existingRoom) {
-        roomId = existingRoom.id;
-      } else {
-        // 2. Create new room
-        const roomRef = await addDoc(collection(db, 'rooms'), {
-          type: 'dm',
-          participants: [user.uid, studentId],
-          participantNames: [user.fullName || 'Recruiter', studentName],
-          title: studentName,
-          lastMessage: 'Chat started',
-          lastMessageAt: serverTimestamp(),
-          createdAt: serverTimestamp(),
-          createdBy: user.uid
-        });
-        roomId = roomRef.id;
-      }
-
-      // 3. Navigate to chat
-      navigate(`/chat?room=${roomId}`);
-    } catch (error) {
-      console.error("Error starting chat:", error);
-      toast.error('Failed to start chat');
-    }
   };
 
   // Dynamic Profile Data Map
@@ -533,9 +489,6 @@ export default function PlacementApplications() {
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleSendEmail(app.studentEmail)}>
                             <Mail className="w-4 h-4 mr-2" /> Send Email
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleStartChat(app.studentId, app.studentName)}>
-                            <MessageCircle className="w-4 h-4 mr-2" /> Chat with Candidate
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => openNoteDialog(app)}>
                             <MessageSquare className="w-4 h-4 mr-2" /> {app.notes ? 'Edit Note' : 'Add Note'}
