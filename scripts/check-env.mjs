@@ -9,6 +9,8 @@ const requiredKeys = [
   "VITE_FIREBASE_STORAGE_BUCKET",
   "VITE_FIREBASE_MESSAGING_SENDER_ID",
   "VITE_FIREBASE_APP_ID",
+  "VITE_SUPABASE_URL",
+  "VITE_SUPABASE_ANON_KEY",
 ];
 
 if (!existsSync(envPath)) {
@@ -32,9 +34,9 @@ const missing = requiredKeys.filter((key) => {
 });
 
 if (missing.length > 0) {
-  console.error("Firebase environment is incomplete. Set these values in .env.local:");
+  console.error("Environment is incomplete. Set these values in .env.local:");
   for (const key of missing) console.error(`- ${key}`);
   process.exit(1);
 }
 
-console.log("Firebase environment is configured.");
+console.log("Firebase and Supabase browser environment are configured.");
