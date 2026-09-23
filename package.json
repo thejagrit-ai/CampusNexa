@@ -7,6 +7,7 @@
     "setup": "node scripts/setup-local.mjs",
     "check:env": "node scripts/check-env.mjs",
     "check:backend": "node --env-file=.env.local scripts/check-env.mjs && node --env-file=.env.local scripts/check-supabase.mjs && node --env-file=.env.local scripts/inspect-supabase-data.mjs",
+    "seed:live-academics": "node scripts/seed-live-academics.mjs",
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
